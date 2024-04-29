@@ -1,82 +1,64 @@
 import socket
 import threading
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives import serialization
-
-
-def print_keys(private,public):
-    # This method only exists to make main method more readable
-    private_serialisation = private.private_bytes( 
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.TraditionalOpenSSL,
-        encryption_algorithm=serialization.NoEncryption()
-    )
-    print(private_serialisation)
-    public_serialisation = public.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
-    )
-    print(public_serialisation)
+import sys
 
 def receive_messages(sock):
     while True:
         try:
             message = sock.recv(1024).decode('utf-8')
             if message:
-                print("Received:", message)
+                print(f"\nReceived: {message}\nType your message: ", end='')
             else:
-                break
-        except:
-            print("Connection closed.")
+                raise Exception("Socket closed")
+        except Exception as e:
+            print(f"\nAn error occurred: {str(e)}")
+            print("Disconnected from chat.")
+            sock.close()
             break
 
 def send_messages(sock):
     while True:
-        message = input("Send: ")
-        sock.send(message.encode('utf-8'))
+        message = input("Type your message: ")
+        if message.lower() == 'exit':
+            sock.close()
+            print("Connection closed.")
+            break
+        try:
+            sock.send(message.encode('utf-8'))
+        except:
+            print("\nUnable to send the message. Connection might be lost.")
+            sock.close()
+            break
 
-def main():
-    # Generate Private Key for RSA
-    private_key = rsa.generate_private_key(
-        public_exponent=65537, # This is the standard number that all applications should use
-        key_size=512,
-    )
-    public_key = private_key.public_key() # Get the associated public key
-
-    # print for debugging
-    print_keys(private_key,public_key)
-    
-
-    choice = input("Do you want to host (H) or join (J)? ").upper()
-    host = '196.24.139.141'
-    port = 12345
-
-    if choice == 'H':
-        # Setting up as host
-        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server.bind((host, port))
-        server.listen(1)
-        print("Waiting for connection...")
-        connection, address = server.accept()
-        print("Connected to", address)
-    else:
-        # Setting up as client
-        connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+def setup_connection(host, port):
+    connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
         connection.connect((host, port))
-        print("Connected")
+        print("Connected to a friend!")
+        return connection, True
+    except socket.error:
+        print("No friend available, waiting for one...")
+        try:
+            connection.bind((host, port))
+            connection.listen(1)
+            conn, addr = connection.accept()
+            print(f"Connected by {addr}")
+            return conn, False
+        except Exception as e:
+            print(f"Failed to bind or listen on {host}:{port} due to {e}")
+            sys.exit()
 
-    # Start receiving and sending messages
-    receive_thread = threading.Thread(target=receive_messages, args=(connection,))
-    receive_thread.start()
-
-    send_thread = threading.Thread(target=send_messages, args=(connection,))
-    send_thread.start()
-
-    receive_thread.join()
-    send_thread.join()
-
-    connection.close()
+def start_chat(host='localhost', port=12345):
+    conn, started_as_client = setup_connection(host, port)
+    thread_receive = threading.Thread(target=receive_messages, args=(conn,))
+    thread_send = threading.Thread(target=send_messages, args=(conn,))
+    thread_receive.start()
+    thread_send.start()
+    thread_receive.join()
+    thread_send.join()
 
 if __name__ == "__main__":
-    main()
+    host_input = input("Enter host IP (default 'localhost'): ").strip() or 'localhost'
+    port_input = input("Enter port number (default 12345): ").strip()
+    port_input = int(port_input) if port_input.isdigit() else 12345
+    start_chat(host=host_input, port=port_input)
