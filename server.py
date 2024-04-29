@@ -7,7 +7,7 @@ def client_handler(connection, address, clients):
             message = connection.recv(1024).decode('utf-8')
             if message:
                 print(f"Received from {address}: {message}")
-                broadcast(f"{address} says: {message}", clients)
+                # broadcast(f"{address} says: {message}", clients)
             else:
                 remove_connection(connection, clients)
                 break
@@ -21,6 +21,17 @@ def broadcast(message, clients):
             client.send(message.encode('utf-8'))
         except:
             remove_connection(client, clients)
+
+# def send_messages(sock):
+#     while True:
+#         message = input("Message: ")
+#         try:
+#             sock.send(message.encode('utf-8'))
+#         except:
+#             print("Failed to send message")
+#             sock.close()
+#             break
+
 
 def remove_connection(connection, clients):
     if connection in clients:
@@ -46,6 +57,10 @@ def main():
         
         thread = threading.Thread(target=client_handler, args=(connection, address, clients))
         thread.start()
+
+
+        message = input("Message: ")
+        broadcast(f"Server says: {message}", clients)
 
 if __name__ == "__main__":
     main()
