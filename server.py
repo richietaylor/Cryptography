@@ -1,5 +1,11 @@
 import socket
+import json
 import threading
+from cryptography.hazmat.primitives import serialization,hashes
+from cryptography.hazmat.primitives.asymmetric import dh, rsa
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+import socket
 
 def client_handler(connection, address, clients):
     while True:
@@ -36,6 +42,23 @@ def main():
     server_socket.bind((host, port))
     server_socket.listen()
     
+    # Generate the keys for the certificate
+    private_key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=512,
+    ) 
+    public_key = private_key.public_key()
+    # Need to serialise the public key before we can send it.
+    public_key_serialised =  public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+
+    # Generate the parametes that will be for the Diffie-Hellman algorithm, send these to the clients
+    parameters = dh.generate_parameters(generator=2, key_size=512)
+
+    # Generate
+
     clients = []
 
     print(f"Server is listening on {host}:{port}")
@@ -54,4 +77,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
