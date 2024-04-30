@@ -53,9 +53,23 @@ def main():
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo
     )
-
+    private_key_serialised =  private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.TraditionalOpenSSL,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+    # Print for debugging
+    print("-----Generated CA's keys-----")
+    print(private_key_serialised.decode())
+    print(public_key_serialised.decode())
     # Generate the parametes that will be for the Diffie-Hellman algorithm, send these to the clients
     parameters = dh.generate_parameters(generator=2, key_size=512)
+    # Extracting the parameters
+    p = parameters.parameter_numbers().p
+    g = parameters.parameter_numbers().g
+    print("-----Generated Parameters for Diffie-Hellman-----")
+    print("p:", p)
+    print("g:", g)
 
     # Generate
 
