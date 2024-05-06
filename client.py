@@ -1,3 +1,4 @@
+from PIL import Image, ImageDraw, ImageFont
 import socket
 import threading
 import sys
@@ -55,6 +56,43 @@ def send_messages(conn):
             data = f"{len(message):<10}".encode('utf-8') + message.encode('utf-8')
             send(conn, data)
 
+def send_file(conn, filepath):
+    if not os.path.isfile(filepath):
+        print("File does not exist.")
+        return
+
+    # Check if the file is an image and add text if required
+    if filepath.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
+        image = Image.open(filepath)
+        draw = ImageDraw.Draw(image)
+        font = ImageFont.load_default()
+
+        caption = input("Enter a caption for the image (leave blank for none): ")
+        if caption:
+            # This will add text at the bottom center of the image
+            textwidth, textheight = draw.textsize(caption, font=font)
+            width, height = image.size
+            x = (width - textwidth) / 2
+            y = height - textheight - 10  # 10 pixels from the bottom
+            draw.text((x, y), caption, font=font, fill=(255, 255, 255))
+
+        # Save the modified image to a temporary file
+        temp_filepath = 'temp_' + os.path.basename(filepath)
+        image.save(temp_filepath)
+        filepath = temp_filepath
+
+    # Send the file
+    conn.send(f"file:{os.path.basename(filepath)}".encode('utf-8'))
+    with open(filepath, 'rb') as file:
+        while True:
+            bytes_read = file.read(1024)
+            if not bytes_read:
+                break
+            conn.send(bytes_read)
+    print("File sent successfully.")
+    if 'temp_' in filepath:
+        os.remove(filepath)  # Clean up the temporary file
+
 def establish_connection(ip, port):
     connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
@@ -93,3 +131,5 @@ if __name__ == "__main__":
     port = int(sys.argv[2])
     act_as_server = len(sys.argv) == 4 and sys.argv[3] == 'server'
     main(ip, port, act_as_server)
+
+
