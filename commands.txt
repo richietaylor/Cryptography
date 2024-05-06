@@ -1,0 +1,5 @@
+# Start the server on one machine
+python client.py localhost 12345 server
+
+# Start the client on another machine
+python client.py localhost 12345
