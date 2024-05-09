@@ -5,6 +5,7 @@ import json
 import hashlib
 
 # Constants
+
 SERVER_HOST = "localhost"
 SERVER_PORT = 12000
 BLOCK_SIZE = 1024           # Block sizes to read from the file at a time
@@ -63,6 +64,7 @@ def menu(clientSocket):
         os.system('clear') 
         print("\nEnter the name of the person you want to send a message to")
         print("\nInput a command number and press RETURN:\n   \
+
               1 - Enter Chat\n   \
               2 - List all users\n   \
               0 - Quit")
@@ -81,13 +83,14 @@ def menu(clientSocket):
             # get the list of users from the server
             for user in userList:
                 print(user)
+
         elif command == "0":
             break
         else:
             print("Invalid command. Please try again.")
 
     return
-
+  
 def chat(serverSocket, user):
     global terminate_flag
     listenThread = threading.Thread(target=receiveMessage, args=(serverSocket,))

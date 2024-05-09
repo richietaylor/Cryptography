@@ -83,7 +83,6 @@ def list_users(connection):
     connection.sendall(json_object.encode())
     print("File list sent to client")
 
-
 def user_auth(connection):
     """Handles an incoming client request."""
 
@@ -123,7 +122,6 @@ def user_auth(connection):
 
             json_data = json.dumps(auth_response)
             connection.sendall(json_data.encode())
-    
     handle_requests(connection, username)
     return
 
@@ -148,7 +146,7 @@ def handle_requests(connection, username):
 
             elif message_type == "MESSAGE":
                 relay_message(connection, data, message['user'])
-            
+
             elif message_type == "QUIT":
                 print(f"User \"{username}\" disconnected")
                 connection.close()
