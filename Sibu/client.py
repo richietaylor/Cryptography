@@ -48,6 +48,7 @@ def main():
             if auth_info["result"] == "yes":
                 print("Welcome " + username)
                 USERNAME = username
+                isAuthenticated = True
             else:
                 print("Authentication failed. Please try again.\nIf this is your first login, the username may be taken")
                 continue
@@ -104,9 +105,9 @@ def chat(serverSocket, user):
 def receiveMessage(clientSocket):
     """Receive a message from the server."""
     while not terminate_flag:
-        message = clientSocket.recv(BLOCK_SIZE).decode()
-        m = json.loads(message)
-        print(f"Message received: {m['message']}")
+        data = clientSocket.recv(BLOCK_SIZE).decode()
+        m = json.loads(data)
+        print(f"Message received: {m['message_type']}")
 
 def sendMessage(serverSocket, message, user):
     """Send a message to the server."""

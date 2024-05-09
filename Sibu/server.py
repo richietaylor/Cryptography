@@ -47,7 +47,7 @@ def authenticate_user(connection, username, password):
 
 def register_user(connection, username, password):
     """Adds a new user to the record of users"""
-
+    print(username, password)
     # Alert the client that the user is new
     auth_obj = {
         "message_type": "AUTH NEW USER",
@@ -60,8 +60,7 @@ def register_user(connection, username, password):
         users = json.load(f)
 
         users[username] = {
-            "password": password.decode(),
-            "keys": []
+            "password": password,
         }
 
         f.seek(0)  # sets the file pointer position to the beginning of the file
