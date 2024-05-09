@@ -3,7 +3,7 @@ import os
 import json
 import concurrent.futures as thread_pool
 
-SERVER_HOST = '127.0.0.1'
+SERVER_HOST = 'localhost'
 SERVER_PORT = 12000
 BLOCK_SIZE = 1024           # Block sizes to read from the file at a time
 CONNECTIONS = {}
@@ -84,7 +84,7 @@ def list_users(connection):
     print("File list sent to client")
 
 
-def handle_request(connection):
+def user_auth(connection):
     """Handles an incoming client request."""
 
     AUTHENTICATED = False
@@ -123,7 +123,12 @@ def handle_request(connection):
 
             json_data = json.dumps(auth_response)
             connection.sendall(json_data.encode())
+    
+    handle_requests(connection, username)
+    return
 
+def handle_requests(connection, username):
+    """Handles incoming client requests."""
     # Command input loop
     while True:
         print(f"Waiting for command...")
@@ -140,9 +145,10 @@ def handle_request(connection):
 
             if message_type == "LIST":
                 list_users(connection)
+
             elif message_type == "MESSAGE":
-                print(f"Message from {username}: {message['message']} to end user: {message['user']}")
                 relay_message(connection, data, message['user'])
+            
             elif message_type == "QUIT":
                 print(f"User \"{username}\" disconnected")
                 connection.close()
@@ -151,15 +157,25 @@ def handle_request(connection):
         except (BrokenPipeError, ConnectionResetError):
             print(f'Error: Connection lost')
             break
+    return
 
 # A function that relays a message from one client to another without decrypting it
-
 def relay_message(connectionFrom, data, user):
     """Relays a message from one client to another."""
     connectionTo = CONNECTIONS[user]
     connectionTo.sendall(data)
     return
 
+def listen_for_exit_command():
+    """Listen for 'exit' command from the console to stop the server."""
+    while True:
+        user_input = input("Type 'exit' to stop the server:\n")
+        if user_input.lower() == 'exit':
+            print("Stopping server...")
+            for connection in CONNECTIONS:
+                CONNECTIONS[connection].close()
+            os._exit(0)
+    
 
 def main():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as clientSocket:
@@ -170,14 +186,15 @@ def main():
 
         # Create a thread pool with 5 threads
         pool = thread_pool.ThreadPoolExecutor(max_workers=5)
+        
+        pool.submit(listen_for_exit_command)
 
         while True:
             connection, address = clientSocket.accept()
 
             print(f'Client connected from {address[0]} :{address[1]}')
             # Assigning a new connection to a thread
-            pool.submit(handle_request, connection)
-
+            pool.submit(user_auth, connection)
 
 if __name__ == '__main__':
     main()

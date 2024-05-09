@@ -5,7 +5,7 @@ import json
 import hashlib
 
 # Constants
-SERVER_HOST = "127.0.0.1"
+SERVER_HOST = "localhost"
 SERVER_PORT = 12000
 BLOCK_SIZE = 1024           # Block sizes to read from the file at a time
 
@@ -63,31 +63,31 @@ def menu(clientSocket):
         os.system('clear') 
         print("\nEnter the name of the person you want to send a message to")
         print("\nInput a command number and press RETURN:\n   \
-              1 - List all users\n   \
-              2 - Enter Chat\n   \
+              1 - Enter Chat\n   \
+              2 - List all users\n   \
               0 - Quit")
         command = input(">>> ").strip()
 
         if command == "1":
-            # List all users
-            userList = []
-            # get the list of users from the server
-            for user in userList:
-                print(user)
-        elif command == "2":
             # Enter Chat
             print("Enter the user name")
             user = input(">>> ").strip()
             # check with server
             chat(clientSocket, user)
             terminate_flag = False
+        elif command == "2":
+            # List all users
+            userList = []
+            # get the list of users from the server
+            for user in userList:
+                print(user)
         elif command == "0":
             break
         else:
             print("Invalid command. Please try again.")
 
     return
-terminate_flag = False
+
 def chat(serverSocket, user):
     global terminate_flag
     listenThread = threading.Thread(target=receiveMessage, args=(serverSocket,))
@@ -107,13 +107,17 @@ def receiveMessage(clientSocket):
     while not terminate_flag:
         data = clientSocket.recv(BLOCK_SIZE).decode()
         m = json.loads(data)
-        print(f"Message received: {m['message_type']}")
+        # Decrypt message here
+        decrypted_message = decrypt_message(m["message"])
+        print(f"Message received: {decrypted_message}")
 
 def sendMessage(serverSocket, message, user):
     """Send a message to the server."""
+    # Encrypt message here
+    encrypted_message = encrypt_message(message)
     message_obj = {
         "message_type": "MESSAGE",
-        "message": message,
+        "message": encrypted_message,
         "username": USERNAME,
         "user": user,
     }
@@ -121,6 +125,13 @@ def sendMessage(serverSocket, message, user):
     serverSocket.sendall(json.dumps(message_obj).encode())
     return
 
+def encrypt_message(message):
+    """Encrypt the message."""
+    return message
+
+def decrypt_message(message):
+    """Decrypt the message."""
+    return message
 
 if __name__ == '__main__':
     main()
