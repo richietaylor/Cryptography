@@ -10,5 +10,11 @@
     },
     "2": {
         "password": "2"
+    },
+    "richard": {
+        "password": "password"
+    },
+    "roo": {
+        "password": "1"
     }
 }

@@ -63,6 +63,7 @@ def main():
     menu(clientSocket)
     clientSocket.close()
 
+
 def menu(clientSocket):
     while True:
         input("\n-Press RETURN to continue")
@@ -93,11 +94,19 @@ def menu(clientSocket):
             for user in userList:
                 print(user)
         elif command == "3":
-            # @TODO List Files
-            print("TODO - List Files")
+            files = os.listdir()
+            out = ""
+            for item in files:
+                out += item + "\n"
+            print("Local Directory: \n")
+            print(out)
         elif command == "4":
-            # @TODO Delete Files
-            print("TODO - Delete Files")
+            try:
+                file = input("Enter File Name: ")
+                os.remove(file)
+                print("Successfully Deleted File.")
+            except FileNotFoundError:
+                print("ERROR 404 - File not found")
         elif command == "5":
             # @TODO Change Dir Files
             print("TODO - Change Dir")
@@ -108,7 +117,8 @@ def menu(clientSocket):
             print("Invalid command. Please try again.")
 
     return
-  
+
+
 def chat(serverSocket, user):
     global terminate_flag
     listenThread = threading.Thread(target=receiveMessage, args=(serverSocket,))
@@ -128,6 +138,7 @@ def chat(serverSocket, user):
             sendMessage(serverSocket, message, user)
     return
 
+
 def receiveMessage(clientSocket):
     """Receive a message from the server."""
     while not terminate_flag:
@@ -137,8 +148,6 @@ def receiveMessage(clientSocket):
         decrypted_message = decrypt_message(m["message"])
         print(f"Message received: {decrypted_message}")
         print(">>> ", end="") # This may need changing...
-
-
 
 
 def sendMessage(serverSocket, message, user):
@@ -156,15 +165,15 @@ def sendMessage(serverSocket, message, user):
     return
 
 
-
-
 def encrypt_message(message):
     """Encrypt the message."""
     return message
 
+
 def decrypt_message(message):
     """Decrypt the message."""
     return message
+
 
 if __name__ == '__main__':
     main()
