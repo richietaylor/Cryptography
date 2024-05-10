@@ -83,6 +83,7 @@ def list_users(connection):
     connection.sendall(json_object.encode())
     print("File list sent to client")
 
+
 def user_auth(connection):
     """Handles an incoming client request."""
 
@@ -125,6 +126,7 @@ def user_auth(connection):
     handle_requests(connection, username)
     return
 
+
 def handle_requests(connection, username):
     """Handles incoming client requests."""
     # Command input loop
@@ -147,6 +149,12 @@ def handle_requests(connection, username):
             elif message_type == "MESSAGE":
                 relay_message(connection, data, message['user'])
 
+            elif message_type == "FILE":
+                file_name = message["file_name"]
+                # receive_file(connection, file_name)
+                relay_file(file_name, message["recipient"])
+
+
             elif message_type == "QUIT":
                 print(f"User \"{username}\" disconnected")
                 connection.close()
@@ -163,6 +171,53 @@ def relay_message(connectionFrom, data, user):
     connectionTo = CONNECTIONS[user]
     connectionTo.sendall(data)
     return
+
+def receive_file(connection, file_name):
+    with open(file_name, 'wb') as file:
+        while True:
+            bytes_read = connection.recv(BLOCK_SIZE)
+            if not bytes_read:
+                break
+            file.write(bytes_read)
+    print(f"File {file_name} received successfully.")
+
+# def relay_file(file_name, recipient):
+#     if recipient in CONNECTIONS:
+#         recipient_connection = CONNECTIONS[recipient]
+#         with open(file_name, 'rb') as file:
+#             while True:
+#                 bytes_read = file.read(BLOCK_SIZE)
+#                 if not bytes_read:
+#                     break
+#                 recipient_connection.sendall(bytes_read)
+#         print(f"File {file_name} sent to {recipient} successfully.")
+#     else:
+#         print(f"Recipient {recipient} not found.")
+
+def relay_file(file_name, recipient):
+    if recipient in CONNECTIONS:
+        print("start")
+        recipient_connection = CONNECTIONS[recipient]
+        # Notify the client that a file transfer is starting
+        file_info = {
+            "message_type": "START_FILE_TRANSFER",
+            "file_name": file_name
+        }
+        recipient_connection.sendall(json.dumps(file_info).encode())
+        print("middle")
+        # Send the file data
+        with open(file_name, 'rb') as file:
+            while True:
+                bytes_read = file.read(BLOCK_SIZE)
+                if not bytes_read:
+                    break
+                recipient_connection.sendall(bytes_read)
+        print(f"File {file_name} sent to {recipient} successfully.")
+    else:
+        print(f"Recipient {recipient} not found.")
+
+
+
 
 def listen_for_exit_command():
     """Listen for 'exit' command from the console to stop the server."""
