@@ -122,50 +122,22 @@ def chat(serverSocket, user):
             break
         if message.isdigit() and eval(message) == 1:
             filepath = input("Please enter the name of the file: ")
-            sendFile(serverSocket, filepath, user)
+            print("TODO")
+            # sendFile(serverSocket, filepath, user)
         else:
             sendMessage(serverSocket, message, user)
     return
 
-# def receiveMessage(clientSocket):
-#     """Receive a message from the server."""
-#     while not terminate_flag:
-#         data = clientSocket.recv(BLOCK_SIZE).decode()
-#         m = json.loads(data)
-#         # Decrypt message here
-#         decrypted_message = decrypt_message(m["message"])
-#         print(f"Message received: {decrypted_message}")
-#         print(">>> ", end="") # This may need changing...
-
 def receiveMessage(clientSocket):
-    """Receive messages or files from the server."""
+    """Receive a message from the server."""
     while not terminate_flag:
-        data = clientSocket.recv(BLOCK_SIZE)
-        if not data:
-            break  # Server closed the connection
+        data = clientSocket.recv(BLOCK_SIZE).decode()
+        m = json.loads(data)
+        # Decrypt message here
+        decrypted_message = decrypt_message(m["message"])
+        print(f"Message received: {decrypted_message}")
+        print(">>> ", end="") # This may need changing...
 
-        # Attempt to parse the data as JSON; if it fails, assume it is file data
-        try:
-            message = json.loads(data.decode())
-            if message.get("message_type") == "START_FILE_TRANSFER":
-                file_name = message["file_name"]
-                saveFile(clientSocket, file_name)
-            else:
-                decrypted_message = decrypt_message(message["message"])
-                print(f"Message received: {decrypted_message}")
-        except json.JSONDecodeError:
-            print("Received unknown data format.")
-
-def saveFile(clientSocket, file_name):
-    """Saves the incoming file data to a file."""
-    print(f"Receiving file: {file_name}")
-    with open(file_name, 'wb') as file:
-        while True:
-            data = clientSocket.recv(BLOCK_SIZE)
-            if not data:
-                break  # File transfer complete
-            file.write(data)
-    print(f"File {file_name} received and saved successfully.")
 
 
 
@@ -184,26 +156,6 @@ def sendMessage(serverSocket, message, user):
     return
 
 
-def sendFile(serverSocket, filepath, user):
-    try:
-        file_name = os.path.basename(filepath)
-        message_obj = {
-            "message_type": "FILE",
-            "file_name": file_name,
-            "recipient": user  # Username of the recipient
-        }
-        serverSocket.sendall(json.dumps(message_obj).encode())  # Send metadata first
-        with open(filepath, 'rb') as file:
-            while True:
-                bytes_read = file.read(BLOCK_SIZE)
-                if not bytes_read:
-                    break
-                serverSocket.sendall(bytes_read)
-        print("File sent successfully.")
-    except FileNotFoundError:
-        print("File not found.")
-    except Exception as e:
-        print(f"Failed to send file: {e}")
 
 
 def encrypt_message(message):

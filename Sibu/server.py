@@ -152,7 +152,7 @@ def handle_requests(connection, username):
             elif message_type == "FILE":
                 file_name = message["file_name"]
                 # receive_file(connection, file_name)
-                relay_file(file_name, message["recipient"])
+                relay_file(file_name, message["recipient"], connection)
 
 
             elif message_type == "QUIT":
@@ -172,14 +172,14 @@ def relay_message(connectionFrom, data, user):
     connectionTo.sendall(data)
     return
 
-def receive_file(connection, file_name):
-    with open(file_name, 'wb') as file:
-        while True:
-            bytes_read = connection.recv(BLOCK_SIZE)
-            if not bytes_read:
-                break
-            file.write(bytes_read)
-    print(f"File {file_name} received successfully.")
+# def receive_file(connection, file_name):
+#     with open(file_name, 'wb') as file:
+#         while True:
+#             bytes_read = connection.recv(BLOCK_SIZE)
+#             if not bytes_read:
+#                 break
+#             file.write(bytes_read)
+#     print(f"File {file_name} received successfully.")
 
 # def relay_file(file_name, recipient):
 #     if recipient in CONNECTIONS:
@@ -194,29 +194,36 @@ def receive_file(connection, file_name):
 #     else:
 #         print(f"Recipient {recipient} not found.")
 
-def relay_file(file_name, recipient):
-    if recipient in CONNECTIONS:
-        print("start")
-        recipient_connection = CONNECTIONS[recipient]
-        # Notify the client that a file transfer is starting
-        file_info = {
-            "message_type": "START_FILE_TRANSFER",
-            "file_name": file_name
-        }
-        recipient_connection.sendall(json.dumps(file_info).encode())
-        print("middle")
-        # Send the file data
-        with open(file_name, 'rb') as file:
-            while True:
-                bytes_read = file.read(BLOCK_SIZE)
-                if not bytes_read:
-                    break
-                recipient_connection.sendall(bytes_read)
-        print(f"File {file_name} sent to {recipient} successfully.")
-    else:
-        print(f"Recipient {recipient} not found.")
+# def relay_file(file_name, recipient, connection):
+#     if recipient in CONNECTIONS:
+#         recipient_connection = CONNECTIONS[recipient]
+#         # Notify the client that a file transfer is starting
+#         file_info = {
+#             "message_type": "START_FILE_TRANSFER",
+#             "file_name": file_name
+#         }
+#         recipient_connection.sendall(json.dumps(file_info).encode())
+#         # Send the file data
+#         # with open(file_name, 'rb') as file:
+#         #     while True:
+#         #         bytes_read = file.read(BLOCK_SIZE)
+#         #         if not bytes_read:
+#         #             break
+#         #         recipient_connection.sendall(bytes_read)
 
+#         while file_size > 0:
+#             chunk = connection.recv(min(1024, file_size))
+#             if not chunk:
+#                 break
+#             recipient_connection.sendall(chunk)
+#             file_size -= len(chunk)
 
+#         print(f"File {file_name} sent to {recipient} successfully.")
+#     else:
+#         print(f"Recipient {recipient} not found.")
+
+def relay_file(file_name, recipient, connection):
+    print("TODO")
 
 
 def listen_for_exit_command():
