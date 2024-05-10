@@ -95,6 +95,12 @@ def menu(clientSocket):
         elif command == "3":
             # @TODO List Files
             print("TODO - List Files")
+        elif command == "4":
+            # @TODO Delete Files
+            print("TODO - Delete Files")
+        elif command == "5":
+            # @TODO Change Dir Files
+            print("TODO - Change Dir")
 
         elif command == "0":
             break
@@ -108,13 +114,17 @@ def chat(serverSocket, user):
     listenThread = threading.Thread(target=receiveMessage, args=(serverSocket,))
     listenThread.start()
     print(user)
-    print("Enter 0 to quit the chat.")
+    print("Enter 0 to quit the chat.\nEnter 1 to send a file.")
     while True:
         message = input(">>> ")
         if message.isdigit() and eval(message) == 0:
             terminate_flag = True
             break
-        sendMessage(serverSocket, message, user)
+        if message.isdigit() and eval(message) == 1:
+            filepath = input("Please enter the name of the file: ")
+            sendFile(serverSocket, message, user)
+        else:
+            sendMessage(serverSocket, message, user)
     return
 
 def receiveMessage(clientSocket):
@@ -125,6 +135,7 @@ def receiveMessage(clientSocket):
         # Decrypt message here
         decrypted_message = decrypt_message(m["message"])
         print(f"Message received: {decrypted_message}")
+        print(">>> ", end="") # This may need changing...
 
 def sendMessage(serverSocket, message, user):
     """Send a message to the server."""
@@ -138,6 +149,10 @@ def sendMessage(serverSocket, message, user):
     }
 
     serverSocket.sendall(json.dumps(message_obj).encode())
+    return
+
+def sendFile(serverSocket, filepath, user):
+    # @TODO Send File
     return
 
 def encrypt_message(message):
