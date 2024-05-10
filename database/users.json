@@ -4,5 +4,11 @@
     },
     "john": {
         "password": "1234"
+    },
+    "1": {
+        "password": "1"
+    },
+    "2": {
+        "password": "2"
     }
 }

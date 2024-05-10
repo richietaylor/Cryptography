@@ -16,9 +16,14 @@ terminate_flag = False
 
 def main():
     """"Connecting to the server"""
-    clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    clientSocket.connect((SERVER_HOST, SERVER_PORT))
-
+    connecting = True
+    while connecting:
+        try:
+            clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            clientSocket.connect((SERVER_HOST, SERVER_PORT))
+            connecting = False
+        except Exception as e:
+            print("Error: You are not connected to the server")
     global USERNAME
     global terminate_flag
 
@@ -61,12 +66,16 @@ def main():
 def menu(clientSocket):
     while True:
         input("\n-Press RETURN to continue")
-        os.system('clear') 
+        # Uncomment for Linux
+        # os.system('clear')
+        os.system('cls') 
         print("\nEnter the name of the person you want to send a message to")
         print("\nInput a command number and press RETURN:\n   \
-
               1 - Enter Chat\n   \
               2 - List all users\n   \
+              3 - List Files\n   \
+              4 - Delete File\n   \
+              5 - Change Directory\n   \
               0 - Quit")
         command = input(">>> ").strip()
 
@@ -83,6 +92,9 @@ def menu(clientSocket):
             # get the list of users from the server
             for user in userList:
                 print(user)
+        elif command == "3":
+            # @TODO List Files
+            print("TODO - List Files")
 
         elif command == "0":
             break
