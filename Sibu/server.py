@@ -172,23 +172,59 @@ def relay_message(connectionFrom, data, user):
     connectionTo.sendall(data)
     return
 
+# def handle_file(connection, message):
+#     """Handle file received from the client."""
+#     file_name = message["file_name"]
+#     file_size = message["file_size"]
+#     file_path = f"./received_files/{file_name}"
+#     os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+#     with open(file_path, 'wb') as f:
+#         while file_size > 0:
+#             data = connection.recv(min(BLOCK_SIZE, file_size))
+#             if not data:
+#                 break
+#             f.write(data)
+#             file_size -= len(data)
+
+#     print(f"Received file: {file_name}")
+#     # Notify the intended user
 def handle_file(connection, message):
     """Handle file received from the client."""
-    file_name = message["file_name"]
-    file_size = message["file_size"]
-    file_path = f"./received_files/{file_name}"
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    file_name = message['file_name']
+    file_size = int(message['file_size'])
+    recipient = message['user']
 
-    with open(file_path, 'wb') as f:
-        while file_size > 0:
-            data = connection.recv(min(BLOCK_SIZE, file_size))
-            if not data:
-                break
-            f.write(data)
-            file_size -= len(data)
-
+    # Collect file data from sender
+    file_data = b''
+    while file_size > 0:
+        data = connection.recv(min(BLOCK_SIZE, file_size))
+        if not data:
+            break
+        file_data += data
+        file_size -= len(data)
+    
     print(f"Received file: {file_name}")
-    # Notify the intended user
+    # Relay file to the intended recipient
+    if recipient in CONNECTIONS:
+        relay_file(CONNECTIONS[recipient], file_name, file_data)
+    else:
+        print(f"Recipient {recipient} not connected or does not exist.")
+
+def relay_file(connectionTo, file_name, data):
+    """Relay the file to another client."""
+    try:
+        # Send file metadata first
+        message_obj = {
+            "message_type": "FILE",
+            "file_name": file_name,
+            "file_size": len(data)
+        }
+        connectionTo.sendall(json.dumps(message_obj).encode())
+        connectionTo.sendall(data)
+        print("File relayed successfully to recipient.")
+    except Exception as e:
+        print(f"Failed to relay file: {e}")
 
 
 

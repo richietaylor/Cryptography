@@ -139,14 +139,44 @@ def chat(serverSocket, user):
 
 
 def receiveMessage(clientSocket):
-    """Receive a message from the server."""
+    """Receive messages or files from the server."""
+    global terminate_flag
     while not terminate_flag:
-        data = clientSocket.recv(BLOCK_SIZE).decode()
-        m = json.loads(data)
-        # Decrypt message here
-        decrypted_message = decrypt_message(m["message"])
-        print(f"Message received: {decrypted_message}")
-        print(">>> ", end="") # This may need changing...
+        try:
+            # Read the initial data which could be a message or file metadata
+            data = clientSocket.recv(BLOCK_SIZE).decode()
+            message = json.loads(data)
+            
+            if message["message_type"] == "MESSAGE":
+                # Decrypt and display the message
+                decrypted_message = decrypt_message(message["message"])
+                print(f"Message received: {decrypted_message}")
+            elif message["message_type"] == "FILE":
+                receive_file(clientSocket, message)
+            
+        except json.JSONDecodeError:
+            continue  # If it fails, it might be part of file data still being received.
+        except Exception as e:
+            print("An error occurred:", e)
+            break
+
+
+def receive_file(clientSocket, file_info):
+    """Receive a file based on received metadata."""
+    file_name = file_info["file_name"]
+    file_size = file_info["file_size"]
+    path = f"{USERNAME}_received_files/{file_name}"
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    
+    with open(path, 'wb') as file:
+        while file_size > 0:
+            chunk = clientSocket.recv(min(BLOCK_SIZE, file_size))
+            if not chunk:
+                break
+            file.write(chunk)
+            file_size -= len(chunk)
+    
+    print(f"File '{file_name}' received and saved to '{path}'.")
 
 
 def sendMessage(serverSocket, message, user):
@@ -181,9 +211,6 @@ def sendFile(serverSocket, filepath, user):
             print("File sent successfully.")
     except Exception as e:
         print(f"Failed to send file: {e}")
-
-
-
 
 
 def encrypt_message(message):
