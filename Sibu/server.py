@@ -150,9 +150,9 @@ def handle_requests(connection, username):
                 relay_message(connection, data, message['user'])
 
             elif message_type == "FILE":
-                file_name = message["file_name"]
-                # receive_file(connection, file_name)
-                relay_file(file_name, message["recipient"], connection)
+                print("Receiving a file...")
+                user = message['user']
+                handle_file(connection, message)
 
 
             elif message_type == "QUIT":
@@ -172,9 +172,24 @@ def relay_message(connectionFrom, data, user):
     connectionTo.sendall(data)
     return
 
+def handle_file(connection, message):
+    """Handle file received from the client."""
+    file_name = message["file_name"]
+    file_size = message["file_size"]
+    file_path = f"./received_files/{file_name}"
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
-def relay_file(file_name, recipient, connection):
-    print("TODO")
+    with open(file_path, 'wb') as f:
+        while file_size > 0:
+            data = connection.recv(min(BLOCK_SIZE, file_size))
+            if not data:
+                break
+            f.write(data)
+            file_size -= len(data)
+
+    print(f"Received file: {file_name}")
+    # Notify the intended user
+
 
 
 def listen_for_exit_command():

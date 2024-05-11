@@ -132,8 +132,7 @@ def chat(serverSocket, user):
             break
         if message.isdigit() and eval(message) == 1:
             filepath = input("Please enter the name of the file: ")
-            print("TODO")
-            # sendFile(serverSocket, filepath, user)
+            sendFile(serverSocket, filepath, user)
         else:
             sendMessage(serverSocket, message, user)
     return
@@ -163,6 +162,28 @@ def sendMessage(serverSocket, message, user):
 
     serverSocket.sendall(json.dumps(message_obj).encode())
     return
+
+
+def sendFile(serverSocket, filepath, user):
+    """Send a file to the server."""
+    try:
+        with open(filepath, 'rb') as file:
+            data = file.read()
+            message_obj = {
+                "message_type": "FILE",
+                "username": USERNAME,
+                "user": user,
+                "file_name": os.path.basename(filepath),
+                "file_size": len(data)
+            }
+            serverSocket.sendall(json.dumps(message_obj).encode())
+            serverSocket.sendall(data)
+            print("File sent successfully.")
+    except Exception as e:
+        print(f"Failed to send file: {e}")
+
+
+
 
 
 def encrypt_message(message):
