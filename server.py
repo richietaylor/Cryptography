@@ -172,23 +172,7 @@ def relay_message(connectionFrom, data, user):
     connectionTo.sendall(data)
     return
 
-# def handle_file(connection, message):
-#     """Handle file received from the client."""
-#     file_name = message["file_name"]
-#     file_size = message["file_size"]
-#     file_path = f"./received_files/{file_name}"
-#     os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
-#     with open(file_path, 'wb') as f:
-#         while file_size > 0:
-#             data = connection.recv(min(BLOCK_SIZE, file_size))
-#             if not data:
-#                 break
-#             f.write(data)
-#             file_size -= len(data)
-
-#     print(f"Received file: {file_name}")
-#     # Notify the intended user
 def handle_file(connection, message):
     """Handle file received from the client."""
     file_name = message['file_name']
@@ -211,6 +195,7 @@ def handle_file(connection, message):
     else:
         print(f"Recipient {recipient} not connected or does not exist.")
 
+
 def relay_file(connectionTo, file_name, data):
     """Relay the file to another client."""
     try:
@@ -225,7 +210,6 @@ def relay_file(connectionTo, file_name, data):
         print("File relayed successfully to recipient.")
     except Exception as e:
         print(f"Failed to relay file: {e}")
-
 
 
 def listen_for_exit_command():
