@@ -8,12 +8,13 @@ from cryptography.hazmat.primitives.asymmetric import dh, rsa, utils, padding
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as paddin
+import zlib
 
 # Function to handle receiving messages
 def receive_messages(client_socket,their_public_key,my_private_key):
     while True:
         try:
-            encrypted_json_message = client_socket.recv(1024)
+            encrypted_json_message = client_socket.recv(2048)
             if not encrypted_json_message:
                 break  # Connection closed by the other side
             received_json_message = encrypted_json_message.decode()
@@ -22,9 +23,12 @@ def receive_messages(client_socket,their_public_key,my_private_key):
             # Decrypt the session key using RSA
             aes_key = rsa_decrypt(my_private_key, base64.b64decode(received_json_message["session_key"]))
 
+            # Decompress the message
+            compressed_message = base64.b64decode(received_json_message["message"])
+            decompressed_message = zlib.decompress(compressed_message)
+
             # Decrypt the message using AES
-            encrypted_message = base64.b64decode(received_json_message["message"])
-            decrypted_message = aes_decrypt(aes_key, encrypted_message).decode()
+            decrypted_message = aes_decrypt(aes_key, decompressed_message).decode()
 
            # Extract the original JSON message
             received_json = json.loads(decrypted_message)
@@ -43,8 +47,6 @@ def receive_messages(client_socket,their_public_key,my_private_key):
         except Exception as e:
             print(f"Error receiving message: {e}")
             break
-
-
 
 def verify_signature(public_key, signature, message):
     try:
@@ -82,18 +84,17 @@ def send_message(client_socket,private_key,public_key):
         session_key = rsa_encrypt(public_key,aes_key)
 
         encrypted_message = aes_encrypt(aes_key, json_string)
-        
+        compressed_message = zlib.compress(encrypted_message)
+        compressed_message_base64 = base64.b64encode(compressed_message).decode('utf-8')
         session_key_base64 = base64.b64encode(session_key).decode('utf-8')
-        encrypted_message_base64 = base64.b64encode(encrypted_message).decode('utf-8')
-
 
         final_json_message = {
             "session_key": session_key_base64,
-            "message": encrypted_message_base64
+            "message": compressed_message_base64
         }
         final_json_string = json.dumps(final_json_message).encode()
 
-        client_socket.send(final_json_string)
+        client_socket.sendall(final_json_string)
         if message.strip() == "/quit":
             print("Connection ended.")
             break
@@ -143,7 +144,10 @@ def generate_key_pair():
     return private_key, public_key
 
 # Function to save keys to JSON file
-def save_keys_to_json(private_key, public_key, password):
+def save_my_keys_to_json(private_key, public_key, password, key_id):
+    with open('keys.json',   'r') as json_file:
+        data = json.load(json_file)
+
     private_key_serialized = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.TraditionalOpenSSL,
@@ -159,33 +163,62 @@ def save_keys_to_json(private_key, public_key, password):
     public_key_string = public_key_serialized.decode('utf-8')
 
     # Create a dictionary with the keys
-    keys_dict = {
+    new_key = {
+        "id": key_id,
         "private_key": private_key_string,
         "public_key": public_key_string
     }
 
+    data['my_keys'].append(new_key)
+
     # Write the dictionary to a JSON file
     with open('keys.json', 'w') as json_file:
-        json.dump(keys_dict, json_file, indent=4)
+        json.dump(data, json_file, indent=4)
+
+# Function to save keys to JSON file
+def save_their_keys_to_json(name, public_key, key_id, certificate):
+    with open('keys.json', 'r') as json_file:
+        data = json.load(json_file)
+
+    public_key_serialized = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    # Convert the serialized keys to strings
+    public_key_string = public_key_serialized.decode('utf-8')
+
+    # Create a dictionary with the keys
+    new_key = {
+        "id": key_id,
+        "name": name,
+        "public_key": public_key_string,
+        "certificate": certificate
+    }
+
+    data['other_keys'].append(new_key)
+
+    # Write the dictionary to a JSON file
+    with open('keys.json', 'w') as json_file:
+        json.dump(data, json_file, indent=4)
 
 # Function to load keys from JSON file
-def load_keys_from_json(password):
+def load_keys_from_json(password,key_id):
     if os.path.exists('keys.json'):
         with open('keys.json', 'r') as json_file:
             keys_dict = json.load(json_file)
-            private_key_bytes = keys_dict.get('private_key')
-            public_key_bytes = keys_dict.get('public_key')
-
-            if private_key_bytes and public_key_bytes:
-                private_key = serialization.load_pem_private_key(
-                    private_key_bytes.encode('utf-8'),
-                    password=password.encode(),
-                )
-                public_key = serialization.load_pem_public_key(
-                    public_key_bytes.encode('utf-8'),
-                )
-                return private_key, public_key
-
+            for key in keys_dict['my_keys']:
+                if key['id'] == key_id:
+                    private_key_bytes = key['private_key']
+                    public_key_bytes = key['public_key']
+                    if private_key_bytes and public_key_bytes:
+                        private_key = serialization.load_pem_private_key(
+                            private_key_bytes.encode('utf-8'),
+                            password=password.encode(),
+                        )
+                        public_key = serialization.load_pem_public_key(
+                            public_key_bytes.encode('utf-8'),
+                        )
+                        return private_key, public_key
     return None, None
 
 def aes_encrypt(key, plaintext):
@@ -227,9 +260,10 @@ def main():
     port = 5555
 
     password = input("Enter a password to protect the private key: ")
+    key_id = input("What is the ID of the key you want to use: ")
         
     # Load keys from JSON file
-    private_key, public_key = load_keys_from_json(password)
+    private_key, public_key = load_keys_from_json(password, key_id)
 
     if private_key and public_key:
         print("Keys loaded from JSON file.")
@@ -237,7 +271,7 @@ def main():
         # Generate new key pair
         private_key, public_key = generate_key_pair()
         print("New keys generated.")
-        save_keys_to_json(private_key, public_key, password)
+        save_my_keys_to_json(private_key, public_key, password, key_id)
 
     # Use the keys as needed
     print("Private Key:", private_key)
