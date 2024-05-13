@@ -10,12 +10,13 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as paddin
 import zlib
+import tempfile
 
 # Constants
 
 SERVER_HOST = "localhost"
 SERVER_PORT = 12000
-BLOCK_SIZE = 1024           # Block sizes to read from the file at a time
+BLOCK_SIZE = 2048           # Block sizes to read from the file at a time
 
 # Globals
 USERNAME = ""
@@ -165,12 +166,13 @@ def receiveMessage(clientSocket, private_key, public_key, key_id):
             # Read the initial data which could be a message or file metadata
             data = clientSocket.recv(BLOCK_SIZE).decode()
             message = json.loads(data)
+            print(message)
             if message["message_type"] == "MESSAGE":
                 # Decrypt and display the message
                 decrypted_message = decrypt_message(message["message"], private_key, public_key, key_id)
                 print(f"Message received: {decrypted_message}")
             elif message["message_type"] == "FILE":
-                receive_file(clientSocket, message)
+                receive_file(clientSocket, message, private_key, public_key, key_id)
             
         except json.JSONDecodeError:
             continue  # If it fails, it might be part of file data still being received.
@@ -181,20 +183,36 @@ def receiveMessage(clientSocket, private_key, public_key, key_id):
 
 def receive_file(clientSocket, file_info, private_key, public_key, key_id):
     """Receive a file based on received metadata."""
-    file_name = file_info["file_name"]
-    file_size = file_info["file_size"]
-    path = f"{USERNAME}_received_files/{file_name}"
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    
-    with open(path, 'wb') as file:
+    try:
+        file_name = file_info["file_name"]
+        file_size = file_info["file_size"]
+        path = f"{USERNAME}_received_files/{file_name}"
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        
+        received_data = b""
         while file_size > 0:
             chunk = clientSocket.recv(min(BLOCK_SIZE, file_size))
             if not chunk:
                 break
-            file.write(chunk)
+            received_data += chunk
             file_size -= len(chunk)
-    
-    print(f"File '{file_name}' received and saved to '{path}'.")
+        
+        print(f"File '{file_name}' received.")
+        
+        # Decrypt the received data as a string
+        decrypted_string = decrypt_message(received_data.decode('utf-8'), private_key, public_key, key_id)
+        if decrypted_string:
+            # Convert the decrypted string back to binary data
+            decrypted_content = base64.b64decode(decrypted_string)
+            
+            # Write the decrypted content to the final file
+            with open(path, 'wb') as decrypted_file:
+                decrypted_file.write(decrypted_content)
+            print(f"File '{file_name}' decrypted and saved to '{path}'.")
+        else:
+            print("Failed to decrypt file.")
+    except Exception as e:
+        print(f"An error occurred while receiving file: {e}")
 
 
 def sendMessage(serverSocket, message, user, private_key, public_key, key_id):
@@ -207,7 +225,7 @@ def sendMessage(serverSocket, message, user, private_key, public_key, key_id):
         "username": USERNAME,
         "user": user,
     }
-    #print(message_obj)
+    print(message_obj)
     serverSocket.sendall(json.dumps(message_obj).encode())
     return
 
@@ -215,18 +233,22 @@ def sendMessage(serverSocket, message, user, private_key, public_key, key_id):
 def sendFile(serverSocket, filepath, user, private_key, public_key, key_id):
     """Send a file to the server."""
     try:
+        # Encrypt the file
         with open(filepath, 'rb') as file:
-            data = file.read()
-            message_obj = {
-                "message_type": "FILE",
-                "username": USERNAME,
-                "user": user,
-                "file_name": os.path.basename(filepath),
-                "file_size": len(data)
-            }
-            serverSocket.sendall(json.dumps(message_obj).encode())
-            serverSocket.sendall(data)
-            print("File sent successfully.")
+            binary_data = file.read()
+        base64_data = base64.b64encode(binary_data).decode('ascii')
+        encrypted_data = encrypt_message(base64_data, private_key, public_key, key_id)
+
+        message_obj = {
+            "message_type": "FILE",
+            "username": USERNAME,
+            "user": user,
+            "file_name": os.path.basename(filepath),
+            "file_size": len(encrypted_data)
+        }
+        serverSocket.sendall(json.dumps(message_obj).encode())
+        serverSocket.sendall(encrypted_data.encode())
+        print("File sent successfully.")
     except Exception as e:
         print(f"Failed to send file: {e}")
 
@@ -266,7 +288,7 @@ def encrypt_message(message, private_key, public_key, key_id):
 
 def decrypt_message(message, private_key, public_key, key_id):
     """Decrypt the message."""
-    decoded_message = decoded_message = base64.b64decode(message)
+    decoded_message = base64.b64decode(message)
     received_json_message = json.loads(decoded_message)
     print(f"Received Message: {received_json_message}")
     
@@ -280,7 +302,7 @@ def decrypt_message(message, private_key, public_key, key_id):
     print(f"Decompressed Message: {decompressed_message}")
     # Decrypt the message using AES
     decrypted_message = aes_decrypt(aes_key, decompressed_message).decode()
-   
+
     # Extract the original JSON message
     received_json = json.loads(decrypted_message)
     print(f"Decrypted Message with public key: {received_json}")
@@ -313,6 +335,7 @@ def verify_signature(public_key, signature, message):
     except Exception as e:
         # Signature verification failed
         return False
+        
 
 def rsa_sign(message,private_key):
     signature = private_key.sign(

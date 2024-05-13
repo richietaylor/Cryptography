@@ -5,7 +5,7 @@ import concurrent.futures as thread_pool
 
 SERVER_HOST = 'localhost'
 SERVER_PORT = 12000
-BLOCK_SIZE = 1024           # Block sizes to read from the file at a time
+BLOCK_SIZE = 2048           # Block sizes to read from the file at a time
 CONNECTIONS = {}
 
 def authenticate_user(connection, username, password):
