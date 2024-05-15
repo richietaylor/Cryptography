@@ -2,9 +2,14 @@ import socket
 import os
 import json
 import concurrent.futures as thread_pool
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
 from cryptography import x509
 from cryptography.x509.oid import NameOID
+from cryptography.hazmat.primitives import hashes
 import datetime
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
+
 
 SERVER_HOST = 'localhost'
 SERVER_PORT = 12000
@@ -48,13 +53,34 @@ def authenticate_user(connection, username, password):
             return "Authentication Error"
 
 
-def create_certificate_for_client(client_public_key, client_username):
-    # Load CA's private key
-    ca_private_key = load_ca_private_key()
+def generate_ca_keys():
+    private_key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048,
+    )
+    public_key = private_key.public_key()
+    return private_key, public_key
 
-    # Create a certificate builder
+
+def save_ca_keys_to_files(private_key, public_key, private_key_file="ca_private_key.pem", public_key_file="ca_public_key.pem"):
+    pem_private = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.TraditionalOpenSSL,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+    pem_public = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    with open(private_key_file, 'wb') as f:
+        f.write(pem_private)
+    with open(public_key_file, 'wb') as f:
+        f.write(pem_public)
+
+
+def create_client_certificate(client_public_key, ca_private_key, username):
     subject = issuer = x509.Name([
-        x509.NameAttribute(NameOID.COMMON_NAME, client_username),
+        x509.NameAttribute(NameOID.COMMON_NAME, username),
     ])
     certificate = x509.CertificateBuilder().subject_name(
         subject
@@ -67,14 +93,12 @@ def create_certificate_for_client(client_public_key, client_username):
     ).not_valid_before(
         datetime.datetime.utcnow()
     ).not_valid_after(
-        # Our certificate will be valid for 1 year
         datetime.datetime.utcnow() + datetime.timedelta(days=365)
     ).add_extension(
-        x509.SubjectAlternativeName([x509.DNSName(client_username)]),
+        x509.SubjectAlternativeName([x509.DNSName(username)]),
         critical=False,
     ).sign(ca_private_key, hashes.SHA256())
 
-    # Convert certificate to PEM format
     return certificate.public_bytes(serialization.Encoding.PEM)
 
 
@@ -188,7 +212,10 @@ def handle_requests(connection, username):
                 handle_file(connection, message)
             elif message_type == "CERTIFICATE":
                 print(f"Got a request from {username}...")
-
+                handle_certificate_request(connection, username, message)
+                print("CERAT DONE")
+            elif message_type == "CERTIFICATE REQUEST":
+                handle_certificate_exchange(connection, username, message)
             elif message_type == "QUIT":
                 print(f"User \"{username}\" disconnected")
                 connection.close()
@@ -198,6 +225,32 @@ def handle_requests(connection, username):
             print(f'Error: Connection lost')
             break
     return
+
+
+def handle_certificate_exchange(connection, username, message):
+    other_user = message["username"]
+    with open(f"{other_user}_certificate.pem", "r") as f:
+        certificate_pem = f.read()
+
+    cert_response = {
+        "message_type": "CERTIFICATE RESPONSE",
+        "certificate": certificate_pem
+    }
+    connection.sendall(json.dumps(cert_response).encode())
+
+
+def handle_certificate_request(connection, username, message):
+    print("Begin")
+    client_public_key_pem = message["public_key"]
+    client_public_key = serialization.load_pem_public_key(client_public_key_pem.encode('utf-8'))
+    certificate_pem = create_client_certificate(client_public_key, ca_private_key, username)
+
+    cert_response = {
+        "message_type": "CERTIFICATE",
+        "certificate": certificate_pem.decode('utf-8')
+    }
+    connection.sendall(json.dumps(cert_response).encode())
+
 
 # A function that relays a message from one client to another without decrypting it
 def relay_message(connectionFrom, data, user):
@@ -257,12 +310,31 @@ def listen_for_exit_command():
             os._exit(0)
     
 
+def load_ca_private_key(private_key_file="ca_private_key.pem"):
+    with open(private_key_file, "rb") as key_file:
+        private_key = load_pem_private_key(
+            key_file.read(),
+            password=None,
+        )
+    return private_key
+
+
+
 def main():
+
+    global ca_private_key #make caps
+    ca_private_key = load_ca_private_key()
+
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as clientSocket:
         clientSocket.bind((SERVER_HOST, SERVER_PORT))
         clientSocket.listen(10)
 
         print(f'Server listening on {SERVER_HOST}: {SERVER_PORT}...')
+
+        
+        ca_private_key, ca_public_key = generate_ca_keys()
+        save_ca_keys_to_files(ca_private_key, ca_public_key)
+        print("CA Keys generated")
 
         # Create a thread pool with 5 threads
         pool = thread_pool.ThreadPoolExecutor(max_workers=5)

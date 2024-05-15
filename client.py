@@ -79,6 +79,7 @@ def main():
             print("New keys generated.")
             save_my_keys_to_json(private_key, public_key, password, key_id)
 
+        request_certificate(clientSocket, private_key, public_key, username)
     
     menu(clientSocket, private_key, public_key, key_id)
     clientSocket.close()
@@ -142,35 +143,6 @@ def menu(clientSocket, private_key, public_key, key_id):
             print("Invalid command. Please try again.")
 
     return
-
-
-# def request_certificate(clientSocket, private_key, public_key):
-#     csr = {
-#         "message_type": "CERTIFICATE_REQUEST",
-#         "username": USERNAME,
-#         "public_key": public_key.public_bytes(
-#             serialization.Encoding.PEM
-#         ).decode()
-#     }
-#     clientSocket.sendall(json.dumps(csr).encode())
-#     # Wait for the certificate
-#     certificate_response = json.loads(clientSocket.recv(BLOCK_SIZE).decode())
-#     store_certificate(certificate_response["certificate"])
-
-
-# def store_certificate(certificate_pem):
-#     # Ensure the directory for storing certificates exists
-#     cert_dir = os.path.join(os.getcwd(), 'certificates')
-#     os.makedirs(cert_dir, exist_ok=True)
-
-#     # Define the path for the certificate file
-#     cert_path = os.path.join(cert_dir, f"{USERNAME}_certificate.pem")
-
-#     # Write the certificate to a file in PEM format
-#     with open(cert_path, 'w') as cert_file:
-#         cert_file.write(certificate_pem)
-
-#     print(f"Certificate stored at: {cert_path}")
 
 
 def chat(serverSocket, user, private_key, public_key, key_id):
@@ -285,6 +257,70 @@ def sendFile(serverSocket, filepath, user, private_key, public_key, key_id):
         print("File sent successfully.")
     except Exception as e:
         print(f"Failed to send file: {e}")
+
+
+def request_certificate(client_socket, private_key, public_key, username):
+    public_key_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    ).decode('utf-8')
+
+    cert_request = {
+        "message_type": "CERTIFICATE",
+        "username": username,
+        "public_key": public_key_pem
+    }
+    client_socket.sendall(json.dumps(cert_request).encode())
+
+    response = client_socket.recv(BLOCK_SIZE).decode()
+    cert_response = json.loads(response)
+
+    if cert_response["message_type"] == "CERTIFICATE":
+        certificate_pem = cert_response["certificate"]
+        print(f"Received certificate from CA:\n{certificate_pem}")
+
+        with open(f"{username}_certificate.pem", "w") as f:
+            f.write(certificate_pem)
+    else:
+        print("Failed to receive certificate from CA.")
+
+
+def exchange_certificates(client_socket, other_user):
+    # Request the other user's certificate
+    cert_request = {
+        "message_type": "CERTIFICATE REQUEST",
+        "username": other_user
+    }
+    client_socket.sendall(json.dumps(cert_request).encode())
+
+    response = client_socket.recv(BLOCK_SIZE).decode()
+    cert_response = json.loads(response)
+
+    if cert_response["message_type"] == "CERTIFICATE RESPONSE":
+        other_user_cert_pem = cert_response["certificate"]
+        print(f"Received {other_user}'s certificate:\n{other_user_cert_pem}")
+
+        with open(f"{other_user}_certificate.pem", "w") as f:
+            f.write(other_user_cert_pem)
+        
+        # Verify the certificate (optional)
+        other_user_cert = x509.load_pem_x509_certificate(other_user_cert_pem.encode('utf-8'))
+        verify_certificate(other_user_cert)
+    else:
+        print("Failed to receive the other user's certificate.")
+
+def verify_certificate(certificate):
+    try:
+        ca_public_key.verify(
+            certificate.signature,
+            certificate.tbs_certificate_bytes,
+            padding.PKCS1v15(),
+            certificate.signature_hash_algorithm,
+        )
+        print("Certificate is valid.")
+    except Exception as e:
+        print("Certificate verification failed:", e)
+
 
 
 def encrypt_message(message, private_key, public_key, key_id):
