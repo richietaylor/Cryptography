@@ -2,6 +2,9 @@ import socket
 import os
 import json
 import concurrent.futures as thread_pool
+from cryptography import x509
+from cryptography.x509.oid import NameOID
+import datetime
 
 SERVER_HOST = 'localhost'
 SERVER_PORT = 12000
@@ -43,6 +46,36 @@ def authenticate_user(connection, username, password):
             # Send authentication failed message
             print("Authentication failed because password didn't match")
             return "Authentication Error"
+
+
+def create_certificate_for_client(client_public_key, client_username):
+    # Load CA's private key
+    ca_private_key = load_ca_private_key()
+
+    # Create a certificate builder
+    subject = issuer = x509.Name([
+        x509.NameAttribute(NameOID.COMMON_NAME, client_username),
+    ])
+    certificate = x509.CertificateBuilder().subject_name(
+        subject
+    ).issuer_name(
+        issuer
+    ).public_key(
+        client_public_key
+    ).serial_number(
+        x509.random_serial_number()
+    ).not_valid_before(
+        datetime.datetime.utcnow()
+    ).not_valid_after(
+        # Our certificate will be valid for 1 year
+        datetime.datetime.utcnow() + datetime.timedelta(days=365)
+    ).add_extension(
+        x509.SubjectAlternativeName([x509.DNSName(client_username)]),
+        critical=False,
+    ).sign(ca_private_key, hashes.SHA256())
+
+    # Convert certificate to PEM format
+    return certificate.public_bytes(serialization.Encoding.PEM)
 
 
 def register_user(connection, username, password):
@@ -153,7 +186,8 @@ def handle_requests(connection, username):
                 print("Receiving a file...")
                 user = message['user']
                 handle_file(connection, message)
-
+            elif message_type == "CERTIFICATE":
+                print(f"Got a request from {username}...")
 
             elif message_type == "QUIT":
                 print(f"User \"{username}\" disconnected")

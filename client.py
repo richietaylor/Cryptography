@@ -97,6 +97,7 @@ def menu(clientSocket, private_key, public_key, key_id):
               3 - List Files\n   \
               4 - Delete File\n   \
               5 - Change Directory\n   \
+              6 - Get Certificate\n   \
               0 - Quit")
         command = input(">>> ").strip()
 
@@ -131,12 +132,45 @@ def menu(clientSocket, private_key, public_key, key_id):
             # @TODO Change Dir Files
             print("TODO - Change Dir")
 
+        elif command == "6":
+            print("TODO - Get certificate")
+            # requestCertificate()
+
         elif command == "0":
             break
         else:
             print("Invalid command. Please try again.")
 
     return
+
+
+# def request_certificate(clientSocket, private_key, public_key):
+#     csr = {
+#         "message_type": "CERTIFICATE_REQUEST",
+#         "username": USERNAME,
+#         "public_key": public_key.public_bytes(
+#             serialization.Encoding.PEM
+#         ).decode()
+#     }
+#     clientSocket.sendall(json.dumps(csr).encode())
+#     # Wait for the certificate
+#     certificate_response = json.loads(clientSocket.recv(BLOCK_SIZE).decode())
+#     store_certificate(certificate_response["certificate"])
+
+
+# def store_certificate(certificate_pem):
+#     # Ensure the directory for storing certificates exists
+#     cert_dir = os.path.join(os.getcwd(), 'certificates')
+#     os.makedirs(cert_dir, exist_ok=True)
+
+#     # Define the path for the certificate file
+#     cert_path = os.path.join(cert_dir, f"{USERNAME}_certificate.pem")
+
+#     # Write the certificate to a file in PEM format
+#     with open(cert_path, 'w') as cert_file:
+#         cert_file.write(certificate_pem)
+
+#     print(f"Certificate stored at: {cert_path}")
 
 
 def chat(serverSocket, user, private_key, public_key, key_id):
@@ -318,6 +352,7 @@ def decrypt_message(message, private_key, public_key, key_id):
 
     return received_message
 
+
 def verify_signature(public_key, signature, message):
     try:
         # Verify the signature
@@ -348,6 +383,7 @@ def rsa_sign(message,private_key):
     )
     return signature
 
+
 def rsa_encrypt(public_key, message):
     # Use RSA encryption to encrypt the plaintext
     ciphertext = public_key.encrypt(
@@ -360,6 +396,7 @@ def rsa_encrypt(public_key, message):
     )
     return ciphertext
 
+
 def rsa_decrypt(private_key, ciphertext):
     # Use RSA decryption to decrypt the ciphertext
     plaintext = private_key.decrypt(
@@ -371,6 +408,7 @@ def rsa_decrypt(private_key, ciphertext):
         )
     )
     return plaintext
+
 
 def aes_encrypt(key, plaintext):
     # Generate a random initialization vector (IV)
