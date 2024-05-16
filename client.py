@@ -45,8 +45,8 @@ def main():
 
     while not isAuthenticated:
         username = input("Please enter your username:\n>>> ")
-        password = input("Please enter your password:\n>>> ")
-        key_id = input("Enter the ID of your key:\n>>> ")
+        password = '1234' #input("Please enter your password:\n>>> ")
+        key_id = '1' #input("Enter the ID of the key (Debugging: put '1'):\n>>> ")
 
         # send the username and password to the server
         auth_obj = {
@@ -87,11 +87,11 @@ def main():
 
         request_certificate(clientSocket, private_key, public_key, username)
     
-    menu(clientSocket, private_key, public_key, key_id, password)
+    menu(clientSocket, private_key, public_key, key_id)
     clientSocket.close()
 
 
-def menu(clientSocket, private_key, public_key, key_id, password):
+def menu(clientSocket, private_key, public_key, key_id):
     while True:
         input("\n-Press RETURN to continue")
         # Uncomment for Linux
@@ -112,7 +112,7 @@ def menu(clientSocket, private_key, public_key, key_id, password):
             print("Enter the user name")
             user = input(">>> ").strip()
             # check with server
-            chat(clientSocket, user, private_key, public_key, key_id, password)
+            chat(clientSocket, user, private_key, public_key, key_id)
             terminate_flag = False
         elif command == "2":
             # List all users
@@ -150,7 +150,7 @@ def menu(clientSocket, private_key, public_key, key_id, password):
     return
 
 
-def chat(serverSocket, user, private_key, public_key, key_id, password):
+def chat(serverSocket, user, private_key, public_key, key_id):
     global terminate_flag
     
     other_user_cert_pem = request_other_client_certificate(serverSocket, user)
@@ -159,7 +159,7 @@ def chat(serverSocket, user, private_key, public_key, key_id, password):
         return
     
     
-    listenThread = threading.Thread(target=receiveMessage, args=(serverSocket, private_key, public_key, key_id,password,))
+    listenThread = threading.Thread(target=receiveMessage, args=(serverSocket, private_key, public_key, key_id,))
     listenThread.start()
     print(user)
     print("Enter 0 to quit the chat.\nEnter 1 to send a file.")
@@ -170,9 +170,9 @@ def chat(serverSocket, user, private_key, public_key, key_id, password):
             break
         if message.isdigit() and eval(message) == 1:
             filepath = input("Please enter the name of the file: ")
-            sendFile(serverSocket, filepath, user, private_key, public_key, key_id, password)
+            sendFile(serverSocket, filepath, user, private_key, public_key, key_id)
         else:
-            sendMessage(serverSocket, message, user, private_key, public_key, key_id, password)
+            sendMessage(serverSocket, message, user, private_key, public_key, key_id)
     return
 
 
@@ -205,7 +205,7 @@ def request_other_client_certificate(client_socket, other_username):
         return None
 
 
-def receiveMessage(clientSocket, private_key, public_key, key_id, password):
+def receiveMessage(clientSocket, private_key, public_key, key_id):
     """Receive messages or files from the server."""
     global terminate_flag
     while not terminate_flag:
@@ -216,10 +216,10 @@ def receiveMessage(clientSocket, private_key, public_key, key_id, password):
             print(message)
             if message["message_type"] == "MESSAGE":
                 # Decrypt and display the message
-                decrypted_message = decrypt_message(message["message"], private_key, public_key, key_id, password)
+                decrypted_message = decrypt_message(message["message"], private_key, public_key, key_id)
                 print(f"Message received: {decrypted_message}")
             elif message["message_type"] == "FILE":
-                receive_file(clientSocket, message, private_key, public_key, key_id, password)
+                receive_file(clientSocket, message, private_key, public_key, key_id)
             
         except json.JSONDecodeError:
             continue  # If it fails, it might be part of file data still being received.
@@ -228,7 +228,7 @@ def receiveMessage(clientSocket, private_key, public_key, key_id, password):
             break
 
 
-def receive_file(clientSocket, file_info, private_key, public_key, key_id, password):
+def receive_file(clientSocket, file_info, private_key, public_key, key_id):
     """Receive a file based on received metadata."""
     try:
         file_name = file_info["file_name"]
@@ -247,7 +247,7 @@ def receive_file(clientSocket, file_info, private_key, public_key, key_id, passw
         print(f"File '{file_name}' received.")
         
         # Decrypt the received data as a string
-        decrypted_string = decrypt_message(received_data.decode('utf-8'), private_key, public_key, key_id, password)
+        decrypted_string = decrypt_message(received_data.decode('utf-8'), private_key, public_key, key_id)
         if decrypted_string:
             # Convert the decrypted string back to binary data
             decrypted_content = base64.b64decode(decrypted_string)
@@ -262,7 +262,7 @@ def receive_file(clientSocket, file_info, private_key, public_key, key_id, passw
         print(f"An error occurred while receiving file: {e}")
 
 
-def sendMessage(serverSocket, message, user, private_key, public_key, key_id, password):
+def sendMessage(serverSocket, message, user, private_key, public_key, key_id):
     """Send a message to the server."""
     # Encrypt message here
     encrypted_message = encrypt_message(message, private_key, public_key, key_id)
@@ -277,14 +277,14 @@ def sendMessage(serverSocket, message, user, private_key, public_key, key_id, pa
     return
 
 
-def sendFile(serverSocket, filepath, user, private_key, public_key, key_id, password):
+def sendFile(serverSocket, filepath, user, private_key, public_key, key_id):
     """Send a file to the server."""
     try:
         # Encrypt the file
         with open(filepath, 'rb') as file:
             binary_data = file.read()
         base64_data = base64.b64encode(binary_data).decode('ascii')
-        encrypted_data = encrypt_message(base64_data, private_key, public_key, key_id, password)
+        encrypted_data = encrypt_message(base64_data, private_key, public_key, key_id)
 
         message_obj = {
             "message_type": "FILE",
@@ -394,7 +394,6 @@ def encrypt_message(message, private_key, public_key, key_id):
     compressed_message_base64 = base64.b64encode(compressed_message).decode('utf-8')
     session_key_base64 = base64.b64encode(session_key).decode('utf-8')
     final_json_message = {
-        "key_id": "1", # TODO - Implement this
         "session_key": session_key_base64,
         "message": compressed_message_base64
     }
@@ -405,16 +404,14 @@ def encrypt_message(message, private_key, public_key, key_id):
     return encrypted_message_base64
 
 
-def decrypt_message(message, private_key, public_key, key_id,password):
+def decrypt_message(message, private_key, public_key, key_id):
     """Decrypt the message."""
     decoded_message = base64.b64decode(message)
     received_json_message = json.loads(decoded_message)
     print(f"Received Message: {received_json_message}")
     
     # Decrypt the session key using RSA
-    message_key_id = received_json_message["key_id"]
-    rsa_private_key = get_key_from_id(message_key_id,password)
-    aes_key = rsa_decrypt(rsa_private_key, base64.b64decode(received_json_message["session_key"]))
+    aes_key = rsa_decrypt(private_key, base64.b64decode(received_json_message["session_key"]))
     print(f"Decrypted AES key: {aes_key}")
 
     # Decompress the message
@@ -569,23 +566,6 @@ def save_my_keys_to_json(private_key, public_key, password, key_id):
     # Write the dictionary to a JSON file
     with open('keys.json', 'w') as json_file:
         json.dump(data, json_file, indent=4)
-
-def get_key_from_id(key_id,password):
-    """ Loads the RSA key that corresponds to the ID sent in a message """
-    if os.path.exists('keys.json'):
-        with open('keys.json', 'r') as json_file:
-            keys_dict = json.load(json_file)
-            for key in keys_dict['my_keys']:
-                if key['id'] == key_id:
-                    private_key_bytes = key['private_key']
-                    if private_key_bytes:
-                        private_key = serialization.load_pem_private_key(
-                            private_key_bytes.encode('utf-8'),
-                            password=password.encode(),
-                        )
-                        return private_key
-    return None
-
 
 # Function to save keys to JSON file
 def save_their_keys_to_json(name, public_key, key_id, certificate):
