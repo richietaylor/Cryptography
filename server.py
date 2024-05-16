@@ -211,9 +211,9 @@ def handle_requests(connection, username):
                 user = message['user']
                 handle_file(connection, message)
             elif message_type == "CERTIFICATE":
-                print(f"Got a request from {username}...")
+                # print(f"Got a request from {username}...")
                 handle_certificate_request(connection, username, message)
-                print("CERAT DONE")
+                print(f"{username} given certificate")
             elif message_type == "CERTIFICATE REQUEST":
                 handle_certificate_exchange(connection, username, message)
             elif message_type == "QUIT":
