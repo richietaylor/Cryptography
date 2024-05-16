@@ -11,6 +11,12 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as paddin
 import zlib
 import tempfile
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography import x509
+
+# TODO remove uneccessary imports
 
 # Constants
 
@@ -98,7 +104,6 @@ def menu(clientSocket, private_key, public_key, key_id):
               3 - List Files\n   \
               4 - Delete File\n   \
               5 - Change Directory\n   \
-              6 - Get Certificate\n   \
               0 - Quit")
         command = input(">>> ").strip()
 
@@ -147,6 +152,13 @@ def menu(clientSocket, private_key, public_key, key_id):
 
 def chat(serverSocket, user, private_key, public_key, key_id):
     global terminate_flag
+    
+    other_user_cert_pem = request_other_client_certificate(serverSocket, user)
+    if not other_user_cert_pem:
+        print("Cannot proceed with chat due to invalid certificate.")
+        return
+    
+    
     listenThread = threading.Thread(target=receiveMessage, args=(serverSocket, private_key, public_key, key_id,))
     listenThread.start()
     print(user)
@@ -162,6 +174,35 @@ def chat(serverSocket, user, private_key, public_key, key_id):
         else:
             sendMessage(serverSocket, message, user, private_key, public_key, key_id)
     return
+
+
+def request_other_client_certificate(client_socket, other_username):
+    cert_request = {
+        "message_type": "CERTIFICATE REQUEST",
+        "username": other_username
+    }
+    client_socket.sendall(json.dumps(cert_request).encode())
+
+    response = client_socket.recv(BLOCK_SIZE).decode()
+    cert_response = json.loads(response)
+
+    if cert_response["message_type"] == "CERTIFICATE RESPONSE":
+        other_client_cert_pem = cert_response["certificate"]
+        print(f"Received {other_username}'s certificate:\n{other_client_cert_pem}")
+
+        with open(f"{other_username}_certificate.pem", "w") as f:
+            f.write(other_client_cert_pem)
+        
+        verified = verify_certificate(other_client_cert_pem, "ca_public_key.pem")
+        if verified:
+            print(f"{other_username}'s certificate is valid.")
+            return other_client_cert_pem
+        else:
+            print(f"{other_username}'s certificate is invalid.")
+            return None
+    else:
+        print("Failed to receive the other client's certificate.")
+        return None
 
 
 def receiveMessage(clientSocket, private_key, public_key, key_id):
@@ -309,7 +350,13 @@ def exchange_certificates(client_socket, other_user):
     else:
         print("Failed to receive the other user's certificate.")
 
-def verify_certificate(certificate):
+
+def verify_certificate(certificate_pem, ca_public_key_file):
+    with open(ca_public_key_file, "rb") as f:
+        ca_public_key = serialization.load_pem_public_key(f.read())
+
+    certificate = x509.load_pem_x509_certificate(certificate_pem.encode('utf-8'))
+
     try:
         ca_public_key.verify(
             certificate.signature,
@@ -317,10 +364,11 @@ def verify_certificate(certificate):
             padding.PKCS1v15(),
             certificate.signature_hash_algorithm,
         )
-        print("Certificate is valid.")
+        # print("Certificate is valid.")
+        return True
     except Exception as e:
         print("Certificate verification failed:", e)
-
+        return False
 
 
 def encrypt_message(message, private_key, public_key, key_id):
