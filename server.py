@@ -9,12 +9,15 @@ from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 import datetime
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
+import random
+from cryptography.hazmat.primitives.asymmetric import padding
 
 
 SERVER_HOST = 'localhost'
 SERVER_PORT = 12000
 BLOCK_SIZE = 2048           # Block sizes to read from the file at a time
 CONNECTIONS = {}
+CHALLENGES = {}
 
 def authenticate_user(connection, username, password):
     """Reads from database to determine if user exists, creates a new entry if they don't."""
@@ -240,16 +243,42 @@ def handle_certificate_exchange(connection, username, message):
 
 
 def handle_certificate_request(connection, username, message):
-    print("Begin")
     client_public_key_pem = message["public_key"]
     client_public_key = serialization.load_pem_public_key(client_public_key_pem.encode('utf-8'))
-    certificate_pem = create_client_certificate(client_public_key, ca_private_key, username)
 
-    cert_response = {
-        "message_type": "CERTIFICATE",
-        "certificate": certificate_pem.decode('utf-8')
-    }
-    connection.sendall(json.dumps(cert_response).encode())
+    # Generate a random challenge
+    challenge = random.randint(100000, 999999)
+    CHALLENGES[username] = challenge
+
+    # Encrypt the challenge with the client's public key
+    encrypted_challenge = client_public_key.encrypt(
+        str(challenge).encode(),
+        padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
+    )
+
+    # Send the encrypted challenge to the client
+    challenge_response = {"message_type": "CERTIFICATE CHALLENGE", "challenge": base64.b64encode(encrypted_challenge).decode('utf-8')}
+    connection.sendall(json.dumps(challenge_response).encode())
+
+
+
+def handle_challenge_response(connection, username, message):
+    client_response = message["challenge_response"]
+
+    if username in CHALLENGES and CHALLENGES[username] == int(client_response):
+        print(f"Challenge successful for {username}")
+
+        # Load the client's public key from the earlier request
+        client_public_key_pem = message["public_key"]
+        client_public_key = serialization.load_pem_public_key(client_public_key_pem.encode('utf-8'))
+
+        certificate_pem = create_client_certificate(client_public_key, ca_private_key, username)
+        cert_response = {"message_type": "CERTIFICATE", "certificate": certificate_pem.decode('utf-8')}
+        connection.sendall(json.dumps(cert_response).encode())
+    else:
+        print(f"Challenge failed for {username}")
+        connection.sendall(json.dumps({"message_type": "CERTIFICATE", "certificate": "CHALLENGE FAILED"}).encode())
+
 
 
 # A function that relays a message from one client to another without decrypting it
@@ -317,7 +346,6 @@ def load_ca_private_key(private_key_file="ca_private_key.pem"):
             password=None,
         )
     return private_key
-
 
 
 def main():
