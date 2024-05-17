@@ -1,5 +1,5 @@
 {
-    "key_id_count": 3,
+    "key_id_count": 7,
     "sibu": {
         "password": "1234",
         "key_id": "1",
@@ -14,5 +14,23 @@
         "password": "12345",
         "key_id": "3",
         "public_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAthes1Hx5KCcWpWQEWfvc\naoqE3A4Yb3aQpkEU+MaUNPcYJPtlhI2MXoMwnaUrdYXW37wqVekZI8Ud7/lm67tL\nOQUaYsg6uWx1ruHgtCuCnA8rR9uFALOFhj8K3XLvWyqfbX5NamG6nzs0qdx2/UAF\n+zXBrt3UXr4U0a/c8cy1ziyxAqdLQTXeUzaK89zsxUbIIuNtGep+U4gWgjh2UNBA\n02TpYD0GmlqA6gDXiAnwzAMZ9/iIttxR1jGrgsGWnUDE1DpmYeb0/ryav3UrhXiz\nzsNI6ySXOp4zdw+FKS0dFOJ7n8ctQKIIScQezNPfwOr3l1yoxoB59uRDFHPwXYNX\nAwIDAQAB\n-----END PUBLIC KEY-----\n"
+    },
+    "rich": {
+        "password": "1",
+        "key_id": "4"
+    },
+    "bob": {
+        "password": "1234",
+        "key_id": "5"
+    },
+    "1": {
+        "password": "1",
+        "key_id": "6",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0AdIKiCnx/Oa0a6D6GGN\nilzunw60lj+p/EBQaCxG0qeNLoFT1cFV1qaNL3eF5cOEg6N2yNiwuEjemCHtpRG5\nurtcXI6s47jbYDLi8ZaBlijaGBgFIZkj5lmE08Z4ooWtOnQToP33UoGW3UvPONmJ\nmHGlYDHnLDAJJhdu/KeaWIoowejhA8RiiyZFPKNGr4hbAHY+Bz2K25hhkgzZ/cgw\nesqhsCMmCQJ1JW5HFPWsfgiGBMS0rVJy6qRV5I7o64crnDB4qqHvsOQwf8XRw6JJ\n2+IlTrve7pLigdHtxjloMAAG3x0G2nMYq+JERLcT/KEw1Rt62YqubuDXlI/5YxMF\nuQIDAQAB\n-----END PUBLIC KEY-----\n"
+    },
+    "2": {
+        "password": "1",
+        "key_id": "7",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr5ydQbwHxEGoyElsYene\nAqsWYNKPjgBaeZNYJ0lE1YeppnPj4vyhODeZBDwaChTuFRyqwCE/i8hkbxf2LL1c\n6KamNJXTdLOcxY/AijmElkU5o3/kOQqfABADrUhXGeifCsjMDdv6mUvfhroKbCGa\nSK0lOt8taJwZOSFLwWQ+6H0vxMyKLsd6gk3Jm76val08OViL49zeGRqPSWqP5awn\n2T5I0o81hu1vgjVcljMTpMtCwLX5XDjo4t7Z3mSzXjVo5k17/C3TCyglKqjEcQNL\ngSiz9WboRG1GtxaAgRSLdMbTUu01DVEzN0ugFc1S8vd8ELB3zMoO1d16TSfMzETi\npQIDAQAB\n-----END PUBLIC KEY-----\n"
     }
 }

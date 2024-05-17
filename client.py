@@ -262,6 +262,7 @@ def receive_file(clientSocket, file_info, private_key, public_key, key_id, passw
     try:
         file_name = file_info["file_name"]
         file_size = file_info["file_size"]
+        caption = file_info["caption"]
         path = f"{USERNAME}_received_files/{file_name}"
         os.makedirs(os.path.dirname(path), exist_ok=True)
         
@@ -274,6 +275,7 @@ def receive_file(clientSocket, file_info, private_key, public_key, key_id, passw
             file_size -= len(chunk)
         
         print(f"File '{file_name}' received.")
+        print(f"Caption: {caption}")
         
         # Decrypt the received data as a string
         decrypted_string = decrypt_message(received_data.decode('utf-8'), private_key, public_key, my_key, password)
@@ -285,6 +287,7 @@ def receive_file(clientSocket, file_info, private_key, public_key, key_id, passw
             with open(path, 'wb') as decrypted_file:
                 decrypted_file.write(decrypted_content)
             print(f"File '{file_name}' decrypted and saved to '{path}'.")
+            print(f"Caption: {caption}")
         else:
             print("Failed to decrypt file.")
     except Exception as e:
@@ -314,13 +317,15 @@ def sendFile(serverSocket, filepath, user, private_key, public_key, key_id):
             binary_data = file.read()
         base64_data = base64.b64encode(binary_data).decode('ascii')
         encrypted_data = encrypt_message(base64_data, private_key, public_key, key_id)
+        caption = input("Please enter a file caption:")
 
         message_obj = {
             "message_type": "FILE",
             "username": USERNAME,
             "user": user,
             "file_name": os.path.basename(filepath),
-            "file_size": len(encrypted_data)
+            "file_size": len(encrypted_data),
+            "caption": caption
         }
         serverSocket.sendall(json.dumps(message_obj).encode())
         serverSocket.sendall(encrypted_data.encode())

@@ -317,6 +317,7 @@ def handle_file(connection, message):
     file_name = message['file_name']
     file_size = int(message['file_size'])
     recipient = message['user']
+    caption = message['caption']
 
     # Collect file data from sender
     file_data = b''
@@ -330,19 +331,20 @@ def handle_file(connection, message):
     print(f"Received file: {file_name}")
     # Relay file to the intended recipient
     if recipient in CONNECTIONS:
-        relay_file(CONNECTIONS[recipient], file_name, file_data)
+        relay_file(CONNECTIONS[recipient], file_name, file_data, caption)
     else:
         print(f"Recipient {recipient} not connected or does not exist.")
 
 
-def relay_file(connectionTo, file_name, data):
+def relay_file(connectionTo, file_name, data, caption):
     """Relay the file to another client."""
     try:
         # Send file metadata first
         message_obj = {
             "message_type": "FILE",
             "file_name": file_name,
-            "file_size": len(data)
+            "file_size": len(data),
+            "caption": caption
         }
         connectionTo.sendall(json.dumps(message_obj).encode())
         connectionTo.sendall(data)
