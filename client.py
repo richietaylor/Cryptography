@@ -95,8 +95,8 @@ def menu(clientSocket, private_key, public_key, key_id):
     while True:
         input("\n-Press RETURN to continue")
         # Uncomment for Linux
-        # os.system('clear')
-        os.system('cls') 
+        os.system('clear')
+        # os.system('cls') 
         print("\nEnter the name of the person you want to send a message to")
         print("\nInput a command number and press RETURN:\n   \
               1 - Enter Chat\n   \
@@ -110,16 +110,27 @@ def menu(clientSocket, private_key, public_key, key_id):
         if command == "1":
             # Enter Chat
             print("Enter the user name")
-            user = input(">>> ").strip()
-            # check with server
-            chat(clientSocket, user, private_key, public_key, key_id)
+            recipient = input(">>> ").strip()
+            # check with server # TODO
+            chat(clientSocket, recipient, private_key, public_key, key_id)
             terminate_flag = False
         elif command == "2":
             # List all users
-            userList = []
+            # Send LIST request to server
+            list_request = {
+                "message_type": "LIST",
+            }
+
+            clientSocket.sendall(json.dumps(list_request).encode())
+
+            # receive the response from the server
+            response = clientSocket.recv(BLOCK_SIZE).decode()
+            list_response = json.loads(response)
+            userList = list_response["body"]
             # get the list of users from the server
+            print("List of users: ")
             for user in userList:
-                print(user)
+                print("\t",user)
         elif command == "3":
             files = os.listdir()
             out = ""
@@ -150,18 +161,18 @@ def menu(clientSocket, private_key, public_key, key_id):
     return
 
 
-def chat(serverSocket, user, private_key, public_key, key_id):
+def chat(serverSocket, recipient, private_key, public_key, key_id):
     global terminate_flag
     
-    other_user_cert_pem = request_other_client_certificate(serverSocket, user)
+    other_user_cert_pem = request_other_client_certificate(serverSocket, recipient)
     if not other_user_cert_pem:
         print("Cannot proceed with chat due to invalid certificate.")
         return
     
     
-    listenThread = threading.Thread(target=receiveMessage, args=(serverSocket, private_key, public_key, key_id,))
+    listenThread = threading.Thread(target=receiveMessage, args=(serverSocket, recipient, private_key, public_key, key_id,))
     listenThread.start()
-    print(user)
+    print(recipient)
     print("Enter 0 to quit the chat.\nEnter 1 to send a file.")
     while True:
         message = input(">>> ")
@@ -170,9 +181,9 @@ def chat(serverSocket, user, private_key, public_key, key_id):
             break
         if message.isdigit() and eval(message) == 1:
             filepath = input("Please enter the name of the file: ")
-            sendFile(serverSocket, filepath, user, private_key, public_key, key_id)
+            sendFile(serverSocket, filepath, recipient, private_key, public_key, key_id)
         else:
-            sendMessage(serverSocket, message, user, private_key, public_key, key_id)
+            sendMessage(serverSocket, message, recipient, private_key, public_key, key_id)
     return
 
 
@@ -205,8 +216,14 @@ def request_other_client_certificate(client_socket, other_username):
         return None
 
 
-def receiveMessage(clientSocket, private_key, public_key, key_id):
+def receiveMessage(clientSocket, sender, private_key, public_key, key_id):
     """Receive messages or files from the server."""
+    message_obj = {
+        "message_type": "NOW ONLINE",
+        "sender": sender,
+    }
+    clientSocket.sendall(json.dumps(message_obj).encode()) # Notify the server that the client is online, and stored messages can be sent
+
     global terminate_flag
     while not terminate_flag:
         try:
@@ -262,7 +279,7 @@ def receive_file(clientSocket, file_info, private_key, public_key, key_id):
         print(f"An error occurred while receiving file: {e}")
 
 
-def sendMessage(serverSocket, message, user, private_key, public_key, key_id):
+def sendMessage(serverSocket, message, recipient, private_key, public_key, key_id):
     """Send a message to the server."""
     # Encrypt message here
     encrypted_message = encrypt_message(message, private_key, public_key, key_id)
@@ -270,7 +287,7 @@ def sendMessage(serverSocket, message, user, private_key, public_key, key_id):
         "message_type": "MESSAGE",
         "message": encrypted_message,
         "username": USERNAME,
-        "user": user,
+        "recipient": recipient,
     }
     print(message_obj)
     serverSocket.sendall(json.dumps(message_obj).encode())

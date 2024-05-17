@@ -207,12 +207,15 @@ def handle_requests(connection, username):
                 list_users(connection)
 
             elif message_type == "MESSAGE":
-                relay_message(connection, data, message['user'])
+                handle_message(connection, data, message['recipient'], username)
+
+            elif message_type == "NOW ONLINE":
+                send_stored_messages(connection, username, message['sender'])
 
             elif message_type == "FILE":
                 print("Receiving a file...")
                 user = message['user']
-                handle_file(connection, message)
+                handle_file(connection, message, username)
             elif message_type == "CERTIFICATE":
                 # print(f"Got a request from {username}...")
                 handle_certificate_request(connection, username, message)
@@ -279,17 +282,22 @@ def handle_challenge_response(connection, username, message):
         print(f"Challenge failed for {username}")
         connection.sendall(json.dumps({"message_type": "CERTIFICATE", "certificate": "CHALLENGE FAILED"}).encode())
 
-
-
 # A function that relays a message from one client to another without decrypting it
-def relay_message(connectionFrom, data, user):
+def handle_message(connectionFrom, data, recipient, sender):
     """Relays a message from one client to another."""
-    connectionTo = CONNECTIONS[user]
+    if recipient in CONNECTIONS:
+        relay_message(CONNECTIONS[recipient], data)
+    else:
+        print(f"User {recipient} not connected or does not exist.")
+        store_message(recipient, data, sender)
+        print(f"Message stored for {recipient}")
+    return
+
+def relay_message(connectionTo, data):
     connectionTo.sendall(data)
     return
 
-
-def handle_file(connection, message):
+def handle_file(connection, message, username):
     """Handle file received from the client."""
     file_name = message['file_name']
     file_size = int(message['file_size'])
@@ -310,6 +318,8 @@ def handle_file(connection, message):
         relay_file(CONNECTIONS[recipient], file_name, file_data)
     else:
         print(f"Recipient {recipient} not connected or does not exist.")
+        store_file(recipient, file_name, file_data, username)
+        print(f"File stored for {recipient}")
 
 
 def relay_file(connectionTo, file_name, data):
@@ -327,6 +337,98 @@ def relay_file(connectionTo, file_name, data):
     except Exception as e:
         print(f"Failed to relay file: {e}")
 
+# Store file in the server in a JSON file named saved_messages
+# The file is stored in the format recipient : {sender: {files: [{file_name: file_data}]; messages: [message]}}
+def store_file(recipient, file_name, file_data, sender):
+    """Store file in the server."""
+    if not os.path.exists("../database/saved_messages"):  # Create a database if it does not exist
+        os.makedirs("../database/saved_messages")
+
+    if not os.path.exists(f"../database/saved_messages/{recipient}_files.json"):  # Create a file if it does not exist
+        with open(f"../database/saved_messages/{recipient}_files.json", "w") as f:
+            f.write("{}")
+
+    with open(f"../database/saved_messages/{recipient}_files.json", "r+") as f:
+        store_files = json.load(f)
+        if sender in store_files:
+            store_files[sender]["files"].append({"file_name": file_name, "file_data": file_data})
+        else:
+            store_files[sender] = {"files": [{"file_name": file_name, "file_data": file_data}]}
+        f.seek(0)
+        json.dump(store_files, f, indent=4, separators=(',', ': '))
+        f.write('\n')
+
+# Store messages in the server in a JSON file named saved_messages
+# The message is stored in the format recipient : {sender: {files: [{file_name: file_data}], messages: [message]}}
+def store_message(recipient, message, sender):
+    """Store message in the server."""
+    if not os.path.exists("../database/saved_messages"):  # Create a database if it does not exist
+        os.makedirs("../database/saved_messages")
+
+    if not os.path.exists(f"../database/saved_messages/{recipient}_messages.json"):  # Create a file if it does not exist
+        with open(f"../database/saved_messages/{recipient}_messages.json", "w") as f:
+            f.write("{}")
+
+    with open(f"../database/saved_messages/{recipient}_messages.json", "r+") as f:
+        store_messages = json.load(f)
+        if sender in store_messages:
+            store_messages[sender]["messages"].append(message)
+        else:
+            store_messages[sender] = {"messages": [message]}
+        f.seek(0)
+        json.dump(store_messages, f, indent=4, separators=(',', ': '))
+        f.write('\n')
+
+# Retrieve files from the server, and delete them from the server, 
+# storing them in a dictionary with file name as key
+# and file data as value
+
+def retrieve_files(username, sender):
+    """Retrieve files from the server."""
+    files = {}
+    if not os.path.exists(f"../database/files/{username}_files.json"):
+        return files
+
+    with open(f"../database/files/{username}_files.json", "r+") as f:
+        store_files = json.load(f)
+        if sender in store_files:
+            for file in store_files[sender]["files"]:
+                files[file["file_name"]] = file["file_data"]
+            del store_files[sender]
+            f.seek(0)
+            json.dump(store_files, f, indent=4, separators=(',', ': '))
+            f.write('\n')
+    return files
+
+# Retrieve messages from the server, and delete them from the server,
+# storing them in a list
+
+def retrieve_messages(username, sender):
+    """Retrieve messages from the server."""
+    messages = []
+    if not os.path.exists(f"../database/messages/{username}_messages.json"):
+        return messages
+
+    with open(f"../database/messages/{username}_messages.json", "r+") as f:
+        store_messages = json.load(f)
+        if sender in store_messages:
+            messages = store_messages[sender]["messages"]
+            del store_messages[sender]
+            f.seek(0)
+            json.dump(store_messages, f, indent=4, separators=(',', ': '))
+            f.write('\n')
+    return messages
+
+def send_stored_messages(connection, username, sender):
+    """Send stored messages to the client."""
+    files = retrieve_files(username, sender)
+    messages = retrieve_messages(username, sender)
+
+    for file_name, file_data in files.items():
+        relay_file(connection, file_name, file_data)
+    for message in messages:
+        relay_message(connection, message)
+    return
 
 def listen_for_exit_command():
     """Listen for 'exit' command from the console to stop the server."""
