@@ -179,7 +179,7 @@ def chat(serverSocket, user, private_key, public_key, key_id, password, my_key):
         return
     
     
-    listenThread = threading.Thread(target=receiveMessage, args=(serverSocket, private_key, public_key, key_id, password, my_key,))
+    listenThread = threading.Thread(target=receiveMessage, args=(serverSocket, private_key, deserialize_public_key, key_id, password, my_key,))
     listenThread.start()
     print(user)
     print("Enter 0 to quit the chat.\nEnter 1 to send a file.")
