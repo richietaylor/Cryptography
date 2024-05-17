@@ -136,7 +136,7 @@ def register_user(connection, username, password):
         "key_id": key_id,
     }
 
-    connection.sendall(json.dumps(auth_obj).encode())
+    #connection.sendall(json.dumps(auth_obj).encode())
     return "Authentication Successful", key_id
 
 

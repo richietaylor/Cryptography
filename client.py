@@ -11,9 +11,6 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as paddin
 import zlib
 import tempfile
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography import x509
 
 # TODO remove uneccessary imports
@@ -79,7 +76,7 @@ def main():
                 continue
         
         # Load keys from JSON file
-        print(password, key_id)
+        #print(password, key_id)
         private_key, public_key = load_keys_from_json(password, key_id)
 
         if private_key and public_key:
@@ -93,11 +90,11 @@ def main():
 
         request_certificate(clientSocket, private_key, public_key, username)
     
-    menu(clientSocket, private_key, password)
+    menu(clientSocket, private_key, password, key_id)
     clientSocket.close()
 
 
-def menu(clientSocket, private_key, password):
+def menu(clientSocket, private_key, password, my_key):
     while True:
         input("\n-Press RETURN to continue")
         # Uncomment for Linux
@@ -132,7 +129,7 @@ def menu(clientSocket, private_key, password):
                 if user_info["result"] == "yes":
                     print("User exists.")
                     print(user_info["public_key"])
-                    chat(clientSocket, user, private_key, user_info["public_key"], user_info["key_id"], password)
+                    chat(clientSocket, user, private_key, user_info["public_key"], user_info["key_id"], password, my_key)
                     terminate_flag = False
                 else:
                     print("User does not exist.")
@@ -172,7 +169,7 @@ def menu(clientSocket, private_key, password):
     return
 
 
-def chat(serverSocket, user, private_key, public_key, key_id, password):
+def chat(serverSocket, user, private_key, public_key, key_id, password, my_key):
     global terminate_flag
     deserialize_public_key = serialization.load_pem_public_key(public_key.encode('utf-8'))
     
@@ -182,7 +179,7 @@ def chat(serverSocket, user, private_key, public_key, key_id, password):
         return
     
     
-    listenThread = threading.Thread(target=receiveMessage, args=(serverSocket, private_key, public_key, key_id,password,))
+    listenThread = threading.Thread(target=receiveMessage, args=(serverSocket, private_key, public_key, key_id, password, my_key,))
     listenThread.start()
     print(user)
     print("Enter 0 to quit the chat.\nEnter 1 to send a file.")
@@ -193,9 +190,9 @@ def chat(serverSocket, user, private_key, public_key, key_id, password):
             break
         if message.isdigit() and eval(message) == 1:
             filepath = input("Please enter the name of the file: ")
-            sendFile(serverSocket, filepath, user, private_key, deserialize_public_key, key_id, password)
+            sendFile(serverSocket, filepath, user, private_key, deserialize_public_key, key_id)
         else:
-            sendMessage(serverSocket, message, user, private_key, deserialize_public_key, key_id, password)
+            sendMessage(serverSocket, message, user, private_key, deserialize_public_key, key_id)
     return
 
 
@@ -228,7 +225,7 @@ def request_other_client_certificate(client_socket, other_username):
         return None
 
 
-def receiveMessage(clientSocket, private_key, public_key, key_id, password):
+def receiveMessage(clientSocket, private_key, public_key, key_id, password, my_key):
     """Receive messages or files from the server."""
     global terminate_flag
     while not terminate_flag:
@@ -239,10 +236,10 @@ def receiveMessage(clientSocket, private_key, public_key, key_id, password):
             print(message)
             if message["message_type"] == "MESSAGE":
                 # Decrypt and display the message
-                decrypted_message = decrypt_message(message["message"], private_key, public_key, key_id, password)
+                decrypted_message = decrypt_message(message["message"], private_key, public_key, my_key, password)
                 print(f"Message received: {decrypted_message}")
             elif message["message_type"] == "FILE":
-                receive_file(clientSocket, message, private_key, public_key, key_id, password)
+                receive_file(clientSocket, message, private_key, public_key, key_id, password, my_key)
             
         except json.JSONDecodeError:
             continue  # If it fails, it might be part of file data still being received.
@@ -251,7 +248,7 @@ def receiveMessage(clientSocket, private_key, public_key, key_id, password):
             break
 
 
-def receive_file(clientSocket, file_info, private_key, public_key, key_id, password):
+def receive_file(clientSocket, file_info, private_key, public_key, key_id, password, my_key):
     """Receive a file based on received metadata."""
     try:
         file_name = file_info["file_name"]
@@ -270,7 +267,7 @@ def receive_file(clientSocket, file_info, private_key, public_key, key_id, passw
         print(f"File '{file_name}' received.")
         
         # Decrypt the received data as a string
-        decrypted_string = decrypt_message(received_data.decode('utf-8'), private_key, public_key, key_id, password)
+        decrypted_string = decrypt_message(received_data.decode('utf-8'), private_key, public_key, my_key, password)
         if decrypted_string:
             # Convert the decrypted string back to binary data
             decrypted_content = base64.b64decode(decrypted_string)
@@ -285,7 +282,7 @@ def receive_file(clientSocket, file_info, private_key, public_key, key_id, passw
         print(f"An error occurred while receiving file: {e}")
 
 
-def sendMessage(serverSocket, message, user, private_key, public_key, key_id, password):
+def sendMessage(serverSocket, message, user, private_key, public_key, key_id):
     """Send a message to the server."""
     # Encrypt message here
     encrypted_message = encrypt_message(message, private_key, public_key, key_id)
@@ -300,14 +297,14 @@ def sendMessage(serverSocket, message, user, private_key, public_key, key_id, pa
     return
 
 
-def sendFile(serverSocket, filepath, user, private_key, public_key, key_id, password):
+def sendFile(serverSocket, filepath, user, private_key, public_key, key_id):
     """Send a file to the server."""
     try:
         # Encrypt the file
         with open(filepath, 'rb') as file:
             binary_data = file.read()
         base64_data = base64.b64encode(binary_data).decode('ascii')
-        encrypted_data = encrypt_message(base64_data, private_key, public_key, key_id, password)
+        encrypted_data = encrypt_message(base64_data, private_key, public_key, key_id)
 
         message_obj = {
             "message_type": "FILE",
@@ -417,7 +414,7 @@ def encrypt_message(message, private_key, public_key, key_id):
     compressed_message_base64 = base64.b64encode(compressed_message).decode('utf-8')
     session_key_base64 = base64.b64encode(session_key).decode('utf-8')
     final_json_message = {
-        "key_id": "1", # TODO - Implement this
+        "key_id": key_id, # TODO - Implement this
         "session_key": session_key_base64,
         "message": compressed_message_base64
     }
