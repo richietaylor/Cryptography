@@ -21,7 +21,7 @@ from cryptography import x509
 # Constants
 
 SERVER_HOST = "localhost"
-SERVER_PORT = 12000
+SERVER_PORT = 12001
 BLOCK_SIZE = 2048           # Block sizes to read from the file at a time
 
 # Globals
@@ -46,7 +46,7 @@ def main():
     while not isAuthenticated:
         username = input("Please enter your username:\n>>> ")
         password = input("Please enter your password:\n>>> ")
-        key_id = input("Enter the ID of your key:\n>>> ")
+        key_id = ''
 
         # send the username and password to the server
         auth_obj = {
@@ -62,19 +62,24 @@ def main():
         auth_info = json.loads(response)
 
         if auth_info["message_type"] == "AUTH NEW USER":
-            print("Welcome " + username)
+            print("Welcome, " + username)
+            key_id = auth_info["key_id"]
+            print(f"Key ID: {key_id}")
             isAuthenticated = True
 
         elif auth_info["message_type"] == "AUTHENTICATION CONFIRMATION":
             if auth_info["result"] == "yes":
-                print("Welcome " + username)
+                print("Welcome back," + username)
                 USERNAME = username
+                key_id = auth_info["key_id"]
+                print(f"Key ID: {key_id}")
                 isAuthenticated = True
             else:
                 print("Authentication failed. Please try again.\nIf this is your first login, the username may be taken")
                 continue
         
         # Load keys from JSON file
+        print(password, key_id)
         private_key, public_key = load_keys_from_json(password, key_id)
 
         if private_key and public_key:
@@ -83,20 +88,21 @@ def main():
             # Generate new key pair
             private_key, public_key = generate_key_pair()
             print("New keys generated.")
+            update_public_key_on_server(clientSocket, username, public_key)
             save_my_keys_to_json(private_key, public_key, password, key_id)
 
         request_certificate(clientSocket, private_key, public_key, username)
     
-    menu(clientSocket, private_key, public_key, key_id, password)
+    menu(clientSocket, private_key, password)
     clientSocket.close()
 
 
-def menu(clientSocket, private_key, public_key, key_id, password):
+def menu(clientSocket, private_key, password):
     while True:
         input("\n-Press RETURN to continue")
         # Uncomment for Linux
-        # os.system('clear')
-        os.system('cls') 
+        os.system('clear')
+        # os.system('cls') 
         print("\nEnter the name of the person you want to send a message to")
         print("\nInput a command number and press RETURN:\n   \
               1 - Enter Chat\n   \
@@ -111,9 +117,25 @@ def menu(clientSocket, private_key, public_key, key_id, password):
             # Enter Chat
             print("Enter the user name")
             user = input(">>> ").strip()
-            # check with server
-            chat(clientSocket, user, private_key, public_key, key_id, password)
-            terminate_flag = False
+            
+            # check with server if user exists and return the public key and key_id
+            user_check = {
+                "message_type": "USER CHECK",
+                "username": user
+            }
+
+            clientSocket.sendall(json.dumps(user_check).encode())
+            response = clientSocket.recv(BLOCK_SIZE).decode()
+            user_info = json.loads(response)
+
+            if user_info["message_type"] == "USER CHECK RESPONSE":
+                if user_info["result"] == "yes":
+                    print("User exists.")
+                    print(user_info["public_key"])
+                    chat(clientSocket, user, private_key, user_info["public_key"], user_info["key_id"], password)
+                    terminate_flag = False
+                else:
+                    print("User does not exist.")
         elif command == "2":
             # List all users
             userList = []
@@ -152,6 +174,7 @@ def menu(clientSocket, private_key, public_key, key_id, password):
 
 def chat(serverSocket, user, private_key, public_key, key_id, password):
     global terminate_flag
+    deserialize_public_key = serialization.load_pem_public_key(public_key.encode('utf-8'))
     
     other_user_cert_pem = request_other_client_certificate(serverSocket, user)
     if not other_user_cert_pem:
@@ -170,9 +193,9 @@ def chat(serverSocket, user, private_key, public_key, key_id, password):
             break
         if message.isdigit() and eval(message) == 1:
             filepath = input("Please enter the name of the file: ")
-            sendFile(serverSocket, filepath, user, private_key, public_key, key_id, password)
+            sendFile(serverSocket, filepath, user, private_key, deserialize_public_key, key_id, password)
         else:
-            sendMessage(serverSocket, message, user, private_key, public_key, key_id, password)
+            sendMessage(serverSocket, message, user, private_key, deserialize_public_key, key_id, password)
     return
 
 
@@ -538,8 +561,31 @@ def generate_key_pair():
     public_key = private_key.public_key()
     return private_key, public_key
 
+def update_public_key_on_server(client_socket, username, public_key):
+    public_key_serialized = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    public_key_string = public_key_serialized.decode('utf-8')
+
+    update_public_key = {
+        "message_type": "UPDATE PUBLIC KEY",
+        "username": username,
+        "public_key": public_key_string,
+    }
+    client_socket.sendall(json.dumps(update_public_key).encode())
+
 # Function to save keys to JSON file
 def save_my_keys_to_json(private_key, public_key, password, key_id):
+    # check if the file exists
+    if not os.path.exists('keys.json'):
+        # Create a new JSON file
+        with open('keys.json', 'w') as json_file:
+            data = {
+                "my_keys": [],
+            }
+            json.dump(data, json_file, indent=4)
+
     with open('keys.json',   'r') as json_file:
         data = json.load(json_file)
 
@@ -585,33 +631,6 @@ def get_key_from_id(key_id,password):
                         )
                         return private_key
     return None
-
-
-# Function to save keys to JSON file
-def save_their_keys_to_json(name, public_key, key_id, certificate):
-    with open('keys.json', 'r') as json_file:
-        data = json.load(json_file)
-
-    public_key_serialized = public_key.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
-    )
-    # Convert the serialized keys to strings
-    public_key_string = public_key_serialized.decode('utf-8')
-
-    # Create a dictionary with the keys
-    new_key = {
-        "id": key_id,
-        "name": name,
-        "public_key": public_key_string,
-        "certificate": certificate
-    }
-
-    data['other_keys'].append(new_key)
-
-    # Write the dictionary to a JSON file
-    with open('keys.json', 'w') as json_file:
-        json.dump(data, json_file, indent=4)
 
 # Function to load keys from JSON file
 def load_keys_from_json(password,key_id):

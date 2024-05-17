@@ -12,26 +12,35 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 
 SERVER_HOST = 'localhost'
-SERVER_PORT = 12000
+SERVER_PORT = 12001
 BLOCK_SIZE = 2048           # Block sizes to read from the file at a time
 CONNECTIONS = {}
 
 def authenticate_user(connection, username, password):
     """Reads from database to determine if user exists, creates a new entry if they don't."""
-    if not os.path.exists("../database"):  # Create a database if it does not exist
-        os.makedirs("../database")
+    if not os.path.exists("./database"):  # Create a database if it does not exist
+        os.makedirs("./database")
     # Create a json file if it does not exist
-    if not os.path.exists("../database/users.json"):
-        with open("../database/users.json", "w") as f:
+    if not os.path.exists("./database/users.json"):
+        with open("./database/users.json", "w") as f:
             f.write("{}")
-
+    
+    # Add key_id_count to the users.json to keep track of the number of keys generated
+    with open("./database/users.json", "r+") as f:
+        users = json.load(f)
+        if "key_id_count" not in users:
+            users["key_id_count"] = 0
+            f.seek(0)
+            json.dump(users, f, indent=4, separators=(',', ': '))
+            f.write('\n')
+     
     # Flag to determine if the user exists or not
     user_exists = False
     users = {}
 
     # Reads from a file that has all known users
     # Search for a user with the given username
-    with open("../database/users.json", "r") as file:
+    with open("./database/users.json", "r") as file:
         users = json.load(file)
 
         for user in users:
@@ -45,12 +54,12 @@ def authenticate_user(connection, username, password):
     else:
         if password == users[username]["password"]:
             print(f"Authentication Successful")
-            return "Authentication Successful"
+            return "Authentication Successful", users[username]["key_id"]
 
         else:
             # Send authentication failed message
             print("Authentication failed because password didn't match")
-            return "Authentication Error"
+            return "Authentication Error", ''
 
 
 def generate_ca_keys():
@@ -105,31 +114,36 @@ def create_client_certificate(client_public_key, ca_private_key, username):
 def register_user(connection, username, password):
     """Adds a new user to the record of users"""
     print(username, password)
-    # Alert the client that the user is new
-    auth_obj = {
-        "message_type": "AUTH NEW USER",
-    }
-
-    connection.sendall(json.dumps(auth_obj).encode())
-
+    key_id = ''
     # Add the user to the file
-    with open("../database/users.json", "r+") as f:
+    with open("./database/users.json", "r+") as f:
         users = json.load(f)
-
+        # update the key_id_count
+        users["key_id_count"] += 1
         users[username] = {
             "password": password,
+            "key_id": str(users["key_id_count"]),
         }
+        key_id = users[username]["key_id"]
 
         f.seek(0)  # sets the file pointer position to the beginning of the file
         json.dump(users, f, indent=4, separators=(',', ': '))
         f.write('\n')
-    return "Authentication Successful"
+    
+    # Alert the client that the user is new
+    auth_obj = {
+        "message_type": "AUTH NEW USER",
+        "key_id": key_id,
+    }
+
+    connection.sendall(json.dumps(auth_obj).encode())
+    return "Authentication Successful", key_id
 
 
 def list_users(connection):
     """Lists all users that are registered"""
     users = []
-    with open("../database/users.json", "r") as file:
+    with open("./database/users.json", "r") as file:
         users = json.load(file)
 
     data = {
@@ -158,7 +172,7 @@ def user_auth(connection):
             username = message["username"]
             password = message["password"]
 
-            auth_result = authenticate_user(connection, username, password)
+            auth_result, key_id = authenticate_user(connection, username, password)
 
             auth_response = ""
             if auth_result == "Authentication Error":
@@ -167,14 +181,15 @@ def user_auth(connection):
                 # Send an authentication error
                 auth_response = {
                     "message_type": "AUTHENTICATION CONFIRMATION",
-                    "result": "no"
+                    "result": "no",
                 }
             elif auth_result == "Authentication Successful":
                 AUTHENTICATED = True
 
                 auth_response = {
                     "message_type": "AUTHENTICATION CONFIRMATION",
-                    "result": "yes"
+                    "result": "yes",
+                    "key_id": key_id,
                 }
                 CONNECTIONS[username] = connection
 
@@ -206,6 +221,31 @@ def handle_requests(connection, username):
             elif message_type == "MESSAGE":
                 relay_message(connection, data, message['user'])
 
+            elif message_type == "UPDATE PUBLIC KEY":
+                update_public_key(connection, message['username'], message['public_key'])
+            elif message_type == "USER CHECK":
+                user = message['username']
+                # check if the user exists in the users.json file
+                # if so, return the public key and key_id
+
+                with open("./database/users.json", "r") as f:
+                    users = json.load(f)
+                    if user in users:
+                        public_key = users[user]["public_key"]
+                        key_id = users[user]["key_id"]
+                        user_check_response = {
+                            "message_type": "USER CHECK RESPONSE",
+                            "result": "yes",
+                            "public_key": public_key,
+                            "key_id": key_id
+                        }
+                        connection.sendall(json.dumps(user_check_response).encode())
+                    else:
+                        user_check_response = {
+                            "message_type": "USER CHECK RESPONSE",
+                            "result": "no",
+                        }
+                        connection.sendall(json.dumps(user_check_response).encode())
             elif message_type == "FILE":
                 print("Receiving a file...")
                 user = message['user']
@@ -226,6 +266,15 @@ def handle_requests(connection, username):
             break
     return
 
+# Update the user's public key in the users.json file
+def update_public_key(connection, username, public_key):
+    with open("./database/users.json", "r+") as f:
+        users = json.load(f)
+        users[username]["public_key"] = public_key
+        f.seek(0)
+        json.dump(users, f, indent=4, separators=(',', ': '))
+        f.write('\n')
+    return
 
 def handle_certificate_exchange(connection, username, message):
     other_user = message["username"]

@@ -1,23 +1,13 @@
 {
+    "key_id_count": 2,
     "sibu": {
-        "password": "1234"
+        "password": "1234",
+        "key_id": "1",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoRM14HMdRQXKdprlEcsN\nxbkByuv6HaN/gtGxGI837dE1DaP3RH6vkh9oZXjmLkEqFsJdgenODpYMXlL/Xg1O\n4pHeCFq8cPoisjtxYj6AEXdcmpIMiapll9iNzcnySoV0vypli7Wk95lxA409iDKp\n86m5qiuYnnlLnzJNejURTRQqBjuBa0MZJEMgDpx4jhnBelOVjykDCBbwhI8z8GIb\n2b9hm/E6LU6mSOuZDbgxzy4gnHBNEenWmG/evVbFIcxtMm7EefKyLWMGKRS4HMwh\nVtSbZcg5cSyFOofsCIKFGrATa7joS4UkR+UrCawEXAQjfhaggPX91fO85MjWft/L\neQIDAQAB\n-----END PUBLIC KEY-----\n"
     },
     "john": {
-        "password": "1234"
-    },
-    "1": {
-        "password": "1"
-    },
-    "2": {
-        "password": "2"
-    },
-    "richard": {
-        "password": "password"
-    },
-    "roo": {
-        "password": "1"
-    },
-    "": {
-        "password": "1"
+        "password": "12345",
+        "key_id": "2",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqmrmyyEUf5VlvWX15kai\nXuBk+je/PKHXsYp43QDob+91waWUZQkiKPuilAAO09myVfEAzW5uyFWOGHP4IHgU\nwvAXCojcXoThKLOoZVbqehluAed+ATnGtSomRH4ujWOiIiI+ueIlFqitGEWAMTtU\nusKHxh+sWvXzhkPoLxH7otJXuRVUg72siTixZfYswQrQWeot4GiUAA0G1iRrmomY\n7jiRN6mDAXMtil6dXYWR5hfLWsQ7U0zuxeOK/taNbBXfDQkz+0b+FseCGLB/fRd8\nkwE1yyQiIrKoh4dXs1AOhuvNPAUhZPeigfkfthxJQuSdoSbQRGEo7DcBpncmKNAr\nVwIDAQAB\n-----END PUBLIC KEY-----\n"
     }
 }
