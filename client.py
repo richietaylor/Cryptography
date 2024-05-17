@@ -18,7 +18,7 @@ from cryptography import x509
 # Constants
 
 SERVER_HOST = "localhost"
-SERVER_PORT = 12001
+SERVER_PORT = 12000
 BLOCK_SIZE = 2048           # Block sizes to read from the file at a time
 
 # Globals
@@ -66,7 +66,7 @@ def main():
 
         elif auth_info["message_type"] == "AUTHENTICATION CONFIRMATION":
             if auth_info["result"] == "yes":
-                print("Welcome back," + username)
+                print("Welcome", username)
                 USERNAME = username
                 key_id = auth_info["key_id"]
                 print(f"Key ID: {key_id}")
@@ -134,11 +134,20 @@ def menu(clientSocket, private_key, password, my_key):
                 else:
                     print("User does not exist.")
         elif command == "2":
-            # List all users
-            userList = []
-            # get the list of users from the server
-            for user in userList:
-                print(user)
+            # Request list of users from the server and print them
+            user_list_request = {
+                "message_type": "LIST"
+            }
+            clientSocket.sendall(json.dumps(user_list_request).encode())
+            # Receive the list of users
+            response = clientSocket.recv(BLOCK_SIZE).decode()
+            user_list_response = json.loads(response)
+            if user_list_response["message_type"] == "USER LISTING":
+                users = user_list_response["users"]
+                print("Available users:")
+                for user in users:
+                    print("\t", user)
+
         elif command == "3":
             files = os.listdir()
             out = ""

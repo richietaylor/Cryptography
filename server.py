@@ -12,7 +12,7 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 
 SERVER_HOST = 'localhost'
-SERVER_PORT = 12001
+SERVER_PORT = 12000
 BLOCK_SIZE = 2048           # Block sizes to read from the file at a time
 CONNECTIONS = {}
 
@@ -144,11 +144,14 @@ def list_users(connection):
     """Lists all users that are registered"""
     users = []
     with open("./database/users.json", "r") as file:
-        users = json.load(file)
+        all_users = json.load(file)
+        for user in all_users:
+            if user != "key_id_count":
+                users.append(user)
 
     data = {
         "message_type": "USER LISTING",
-        "body": users
+        "users": users
     }
     json_object = json.dumps(data)
     connection.sendall(json_object.encode())
