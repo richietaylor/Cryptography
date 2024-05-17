@@ -9,15 +9,12 @@ from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 import datetime
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
-import random
-from cryptography.hazmat.primitives.asymmetric import padding
 
 
 SERVER_HOST = 'localhost'
 SERVER_PORT = 12000
 BLOCK_SIZE = 2048           # Block sizes to read from the file at a time
 CONNECTIONS = {}
-CHALLENGES = {}
 
 def authenticate_user(connection, username, password):
     """Reads from database to determine if user exists, creates a new entry if they don't."""
@@ -207,15 +204,12 @@ def handle_requests(connection, username):
                 list_users(connection)
 
             elif message_type == "MESSAGE":
-                handle_message(connection, data, message['recipient'], username)
-
-            elif message_type == "NOW ONLINE":
-                send_stored_messages(connection, username, message['sender'])
+                relay_message(connection, data, message['user'])
 
             elif message_type == "FILE":
                 print("Receiving a file...")
                 user = message['user']
-                handle_file(connection, message, username)
+                handle_file(connection, message)
             elif message_type == "CERTIFICATE":
                 # print(f"Got a request from {username}...")
                 handle_certificate_request(connection, username, message)
@@ -246,58 +240,27 @@ def handle_certificate_exchange(connection, username, message):
 
 
 def handle_certificate_request(connection, username, message):
+    print("Begin")
     client_public_key_pem = message["public_key"]
     client_public_key = serialization.load_pem_public_key(client_public_key_pem.encode('utf-8'))
+    certificate_pem = create_client_certificate(client_public_key, ca_private_key, username)
 
-    # Generate a random challenge
-    challenge = random.randint(100000, 999999)
-    CHALLENGES[username] = challenge
+    cert_response = {
+        "message_type": "CERTIFICATE",
+        "certificate": certificate_pem.decode('utf-8')
+    }
+    connection.sendall(json.dumps(cert_response).encode())
 
-    # Encrypt the challenge with the client's public key
-    encrypted_challenge = client_public_key.encrypt(
-        str(challenge).encode(),
-        padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
-    )
-
-    # Send the encrypted challenge to the client
-    challenge_response = {"message_type": "CERTIFICATE CHALLENGE", "challenge": base64.b64encode(encrypted_challenge).decode('utf-8')}
-    connection.sendall(json.dumps(challenge_response).encode())
-
-
-
-def handle_challenge_response(connection, username, message):
-    client_response = message["challenge_response"]
-
-    if username in CHALLENGES and CHALLENGES[username] == int(client_response):
-        print(f"Challenge successful for {username}")
-
-        # Load the client's public key from the earlier request
-        client_public_key_pem = message["public_key"]
-        client_public_key = serialization.load_pem_public_key(client_public_key_pem.encode('utf-8'))
-
-        certificate_pem = create_client_certificate(client_public_key, ca_private_key, username)
-        cert_response = {"message_type": "CERTIFICATE", "certificate": certificate_pem.decode('utf-8')}
-        connection.sendall(json.dumps(cert_response).encode())
-    else:
-        print(f"Challenge failed for {username}")
-        connection.sendall(json.dumps({"message_type": "CERTIFICATE", "certificate": "CHALLENGE FAILED"}).encode())
 
 # A function that relays a message from one client to another without decrypting it
-def handle_message(connectionFrom, data, recipient, sender):
+def relay_message(connectionFrom, data, user):
     """Relays a message from one client to another."""
-    if recipient in CONNECTIONS:
-        relay_message(CONNECTIONS[recipient], data)
-    else:
-        print(f"User {recipient} not connected or does not exist.")
-        store_message(recipient, data, sender)
-        print(f"Message stored for {recipient}")
-    return
-
-def relay_message(connectionTo, data):
+    connectionTo = CONNECTIONS[user]
     connectionTo.sendall(data)
     return
 
-def handle_file(connection, message, username):
+
+def handle_file(connection, message):
     """Handle file received from the client."""
     file_name = message['file_name']
     file_size = int(message['file_size'])
@@ -318,8 +281,6 @@ def handle_file(connection, message, username):
         relay_file(CONNECTIONS[recipient], file_name, file_data)
     else:
         print(f"Recipient {recipient} not connected or does not exist.")
-        store_file(recipient, file_name, file_data, username)
-        print(f"File stored for {recipient}")
 
 
 def relay_file(connectionTo, file_name, data):
@@ -337,98 +298,6 @@ def relay_file(connectionTo, file_name, data):
     except Exception as e:
         print(f"Failed to relay file: {e}")
 
-# Store file in the server in a JSON file named saved_messages
-# The file is stored in the format recipient : {sender: {files: [{file_name: file_data}]; messages: [message]}}
-def store_file(recipient, file_name, file_data, sender):
-    """Store file in the server."""
-    if not os.path.exists("../database/saved_messages"):  # Create a database if it does not exist
-        os.makedirs("../database/saved_messages")
-
-    if not os.path.exists(f"../database/saved_messages/{recipient}_files.json"):  # Create a file if it does not exist
-        with open(f"../database/saved_messages/{recipient}_files.json", "w") as f:
-            f.write("{}")
-
-    with open(f"../database/saved_messages/{recipient}_files.json", "r+") as f:
-        store_files = json.load(f)
-        if sender in store_files:
-            store_files[sender]["files"].append({"file_name": file_name, "file_data": file_data})
-        else:
-            store_files[sender] = {"files": [{"file_name": file_name, "file_data": file_data}]}
-        f.seek(0)
-        json.dump(store_files, f, indent=4, separators=(',', ': '))
-        f.write('\n')
-
-# Store messages in the server in a JSON file named saved_messages
-# The message is stored in the format recipient : {sender: {files: [{file_name: file_data}], messages: [message]}}
-def store_message(recipient, message, sender):
-    """Store message in the server."""
-    if not os.path.exists("../database/saved_messages"):  # Create a database if it does not exist
-        os.makedirs("../database/saved_messages")
-
-    if not os.path.exists(f"../database/saved_messages/{recipient}_messages.json"):  # Create a file if it does not exist
-        with open(f"../database/saved_messages/{recipient}_messages.json", "w") as f:
-            f.write("{}")
-
-    with open(f"../database/saved_messages/{recipient}_messages.json", "r+") as f:
-        store_messages = json.load(f)
-        if sender in store_messages:
-            store_messages[sender]["messages"].append(message)
-        else:
-            store_messages[sender] = {"messages": [message]}
-        f.seek(0)
-        json.dump(store_messages, f, indent=4, separators=(',', ': '))
-        f.write('\n')
-
-# Retrieve files from the server, and delete them from the server, 
-# storing them in a dictionary with file name as key
-# and file data as value
-
-def retrieve_files(username, sender):
-    """Retrieve files from the server."""
-    files = {}
-    if not os.path.exists(f"../database/files/{username}_files.json"):
-        return files
-
-    with open(f"../database/files/{username}_files.json", "r+") as f:
-        store_files = json.load(f)
-        if sender in store_files:
-            for file in store_files[sender]["files"]:
-                files[file["file_name"]] = file["file_data"]
-            del store_files[sender]
-            f.seek(0)
-            json.dump(store_files, f, indent=4, separators=(',', ': '))
-            f.write('\n')
-    return files
-
-# Retrieve messages from the server, and delete them from the server,
-# storing them in a list
-
-def retrieve_messages(username, sender):
-    """Retrieve messages from the server."""
-    messages = []
-    if not os.path.exists(f"../database/messages/{username}_messages.json"):
-        return messages
-
-    with open(f"../database/messages/{username}_messages.json", "r+") as f:
-        store_messages = json.load(f)
-        if sender in store_messages:
-            messages = store_messages[sender]["messages"]
-            del store_messages[sender]
-            f.seek(0)
-            json.dump(store_messages, f, indent=4, separators=(',', ': '))
-            f.write('\n')
-    return messages
-
-def send_stored_messages(connection, username, sender):
-    """Send stored messages to the client."""
-    files = retrieve_files(username, sender)
-    messages = retrieve_messages(username, sender)
-
-    for file_name, file_data in files.items():
-        relay_file(connection, file_name, file_data)
-    for message in messages:
-        relay_message(connection, message)
-    return
 
 def listen_for_exit_command():
     """Listen for 'exit' command from the console to stop the server."""
@@ -448,6 +317,7 @@ def load_ca_private_key(private_key_file="ca_private_key.pem"):
             password=None,
         )
     return private_key
+
 
 
 def main():
